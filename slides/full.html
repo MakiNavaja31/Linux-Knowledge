@@ -1,0 +1,795 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Linux under the Hood: Boot, Login, Services and Security (Intermediate Level)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<style>* { margin: 0 } body { font: 32px/1.2 sans-serif; background:#888 } body > section { width: 1920px !important; height: 1080px !important; overflow: hidden !important; box-sizing: border-box !important; position: relative; isolation: isolate; margin-bottom: 20px } aside { display: none !important } h1 { font-size: 96px; font-weight: 600 } h2 { font-size: 64px; font-weight: 600 } h3 { font-size: 44px; font-weight: 600 } p, li, h1, h2, h3, td, th { overflow-wrap: break-word } table { width: 100%; border-collapse: separate; border-spacing: 0; border: solid #0003; border-width: 2px 0 0 2px } th, td { padding: .35em .6em; text-align: left; border: solid #0003; border-width: 0 2px 2px 0 } x-shape { display: block } x-shape[kind="arrow-right"] { clip-path: polygon(0 30%, 60% 30%, 60% 0, 100% 50%, 60% 100%, 60% 70%, 0 70%) } x-shape[kind="arrow-down"] { clip-path: polygon(30% 0, 70% 0, 70% 60%, 100% 60%, 50% 100%, 0 60%, 30% 60%) } @media print { @page { size: 1920px 1080px; margin: 0 } body { background: none; zoom: 1 !important } body > section { margin: 0 !important; break-after: page } }</style>
+<style>/* Linux under the Hood: shared slide rules. Sizes: 96 / 54 / 32 / 26 / 24. */
+body { font-family: 'Inter', Arial, sans-serif; color: #3C4A41; }
+section { counter-increment: page; }
+
+.s { background: #FAFBF7; padding: 128px 128px 160px; display: flex; flex-direction: column; }
+.alt { background: #EFF4EC; }
+
+.s h1 { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 96px; font-weight: 600; line-height: 1.05; color: #17251C; }
+.s h2 { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 54px; font-weight: 600; line-height: 1.1; color: #17251C; margin-bottom: 16px; }
+.s h3 { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 32px; font-weight: 600; line-height: 1.3; color: #17251C; }
+
+.eyebrow { font-size: 24px; font-weight: 600; color: #2A7A46; letter-spacing: 1px; line-height: 1.25; margin-bottom: 12px; }
+.lead { font-size: 32px; line-height: 1.4; color: #3C4A41; margin-bottom: 24px; }
+.txt { font-size: 26px; line-height: 1.4; color: #3C4A41; margin-top: 8px; }
+.note { font-size: 24px; line-height: 1.35; color: #5B6A60; margin-top: 22px; }
+.big { font-size: 32px; font-weight: 600; color: #17251C; }
+
+/* cards */
+.cards { display: flex; gap: 32px; }
+.card { flex: 1; background: #FDFEFB; border: 2px solid #D5DED3; border-radius: 16px; padding: 20px 26px; }
+.edit { border-color: #2A7A46; }
+.edit h3 { color: #2A7A46; }
+.half { flex: 1; }
+.item { margin-top: 12px; }
+.path { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 26px; line-height: 1.3; color: #17251C; }
+.why { font-size: 26px; line-height: 1.3; color: #5B6A60; }
+.risk .why { color: #8A5300; }
+
+/* command pills */
+.cmds { display: flex; flex-wrap: wrap; gap: 10px 12px; margin-top: 22px; align-items: center; }
+.cl { font-size: 24px; font-weight: 600; color: #17251C; }
+.cmd { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 24px; line-height: 1.3; background: #E3EBDF; color: #17251C; padding: 4px 14px; border-radius: 8px; }
+
+/* lists */
+.bul { font-size: 32px; line-height: 1.4; color: #3C4A41; margin-top: 8px; padding-left: 36px; }
+.sm { font-size: 26px; line-height: 1.45; }
+.chk { line-height: 1.62; }
+.num { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 26px; line-height: 1.75; color: #17251C; margin-top: 8px; padding-left: 44px; }
+
+/* code */
+.codet { font-size: 24px; font-weight: 600; color: #5B6A60; margin-top: 12px; margin-bottom: 6px; }
+.code { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 24px; line-height: 1.42; background: #E3EBDF; color: #17251C; border-radius: 12px; padding: 16px 22px; }
+.one { margin-top: 10px; }
+
+/* tables */
+.t { width: 100%; font-size: 26px; color: #3C4A41; }
+.th { background: #D6E4D2; }
+.band { background: #F1F6EE; }
+
+/* footer band */
+.foot { position: absolute; left: 128px; bottom: 64px; width: 1664px; display: flex; justify-content: space-between; }
+.ft { font-size: 24px; color: #5B6A60; }
+.pg { font-size: 24px; color: #5B6A60; }
+.pg::after { content: counter(page); }
+
+/* cover */
+.cover { padding: 128px; justify-content: space-between; }
+.csub { font-size: 54px; line-height: 1.15; color: #2A7A46; margin-top: 18px; }
+.clevel { font-size: 32px; color: #3C4A41; margin-top: 26px; }
+.ccred { display: flex; justify-content: space-between; align-items: flex-end; }
+.cname { font-size: 32px; font-weight: 600; color: #17251C; }
+.cby { font-size: 24px; color: #5B6A60; margin-top: 6px; }
+.cclic { display: flex; flex-direction: column; align-items: flex-end; }
+.licrow { display: flex; gap: 20px; align-items: center; margin-top: 8px; }
+.lictx { font-size: 32px; font-weight: 600; color: #17251C; }
+
+/* index rows */
+.irow { display: flex; gap: 16px; margin-top: 7px; }
+.inum { font-size: 26px; font-weight: 600; color: #2A7A46; width: 44px; }
+.itx { font-size: 26px; line-height: 1.3; color: #3C4A41; }
+
+/* overview columns */
+.ocols { display: flex; gap: 22px; align-items: center; }
+.ocol { flex: 1; background: #FDFEFB; border: 2px solid #D5DED3; border-radius: 16px; padding: 22px 24px; }
+.osub { font-size: 26px; color: #5B6A60; margin-bottom: 14px; }
+.ostep { font-size: 26px; color: #17251C; background: #E3EBDF; border-radius: 8px; padding: 12px 18px; margin-top: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 26px; }
+.chip { font-size: 26px; color: #17251C; background: #FDFEFB; border: 2px solid #2A7A46; border-radius: 10px; padding: 6px 16px; }
+
+/* diagrams */
+.flow { display: flex; gap: 14px; align-items: center; }
+.box { flex: 1; background: #FDFEFB; border: 2px solid #D5DED3; border-radius: 12px; padding: 14px 12px; text-align: center; }
+.hi { border: 4px solid #2A7A46; }
+.warn { border: 4px solid #8A5300; }
+.bt { font-size: 26px; font-weight: 600; color: #17251C; line-height: 1.25; }
+.bs { font-size: 26px; color: #5B6A60; line-height: 1.25; }
+.arr { background: #5B6A60; width: 44px; height: 22px; flex: none; }
+.arrd { background: #5B6A60; width: 22px; height: 40px; flex: none; }
+.legend { display: flex; flex-direction: column; gap: 12px; margin-top: 26px; }
+.leg { display: flex; gap: 18px; align-items: center; }
+.tag { font-size: 24px; font-weight: 600; width: 170px; text-align: center; border-radius: 8px; padding: 4px 0; flex: none; }
+.ok { background: #D5EBDA; color: #1D5A33; }
+.no { background: #F3DDD2; color: #8A2B0C; }
+.legt { font-size: 26px; line-height: 1.3; color: #3C4A41; }
+.lane { font-size: 24px; font-weight: 600; color: #17251C; margin-top: 14px; margin-bottom: 8px; }
+.warnc { color: #8A5300; }
+.fields { display: flex; gap: 10px; margin-top: 6px; }
+.field { flex: 1; font-size: 24px; font-weight: 600; text-align: center; background: #2A7A46; color: #FDFEFB; border-radius: 8px; padding: 8px 4px; }
+.linkd { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.linkmid { display: flex; gap: 14px; align-items: center; padding-left: 40px; }
+.lay { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.layer { background: #FDFEFB; border: 2px solid #2A7A46; border-radius: 12px; padding: 12px 20px; }
+</style></head><body>
+<section id="cover" class="s alt cover">
+<p class="eyebrow">A guided tour of Linux Mint 22.x, Cinnamon edition</p>
+<div class="ctitle"><h1>Linux under the Hood</h1>
+<p class="csub">Boot, Login, Services and Security</p>
+<p class="clevel">Intermediate level · Version 01 · November 2026</p></div>
+<div class="ccred"><div class="ccleft"><p class="cname">Ángel Rodríguez Gil</p>
+<p class="cby">Created with Claude Fable 5.2 (AI assistance)</p></div>
+<div class="cclic"><svg aria-label="Creative Commons Attribution (CC BY) license icons" width="150" height="64" viewBox="0 0 150 64"><circle cx="32" cy="32" r="28" fill="none" stroke="#17251C" stroke-width="5"/><path d="M29 25 a8.5 8.5 0 1 0 0 14" fill="none" stroke="#17251C" stroke-width="5"/><path d="M46 25 a8.5 8.5 0 1 0 0 14" fill="none" stroke="#17251C" stroke-width="5"/><circle cx="110" cy="32" r="28" fill="none" stroke="#17251C" stroke-width="5"/><circle cx="110" cy="19" r="5.5" fill="#17251C"/><path d="M101 28 h18 v13 h-4.5 v13 h-9 v-13 h-4.5 z" fill="#17251C"/></svg><p class="cby">CC BY 4.0</p></div></div>
+</section>
+
+<section id="purpose" class="s">
+<p class="eyebrow">2.1 · Purpose and index</p>
+<h2>Why this guide, and what is inside</h2>
+<div class="cards"><div class="card edit"><h3>Purpose</h3>
+<ul class="bul"><li>Show what Linux Mint does from the power button to a working, secured desktop</li><li>Name the files involved at each step, and the ones you can customize</li><li>Give safe commands to look at your own system before you change anything</li></ul>
+</div><div class="card"><h3>Index</h3>
+<div class="irow"><p class="inum">1</p><p class="itx">Cover</p></div><div class="irow"><p class="inum">2</p><p class="itx">Purpose and introduction to Linux Mint</p></div><div class="irow"><p class="inum">3</p><p class="itx">The six blocks at a glance</p></div><div class="irow"><p class="inum">4</p><p class="itx">Block 1 · System start-up</p></div><div class="irow"><p class="inum">5</p><p class="itx">Block 2 · Login process</p></div><div class="irow"><p class="inum">6</p><p class="itx">Block 3 · User access</p></div><div class="irow"><p class="inum">7</p><p class="itx">Block 4 · Services and daemons</p></div><div class="irow"><p class="inum">8</p><p class="itx">Block 5 · Network and firewall</p></div><div class="irow"><p class="inum">9</p><p class="itx">Block 6 · Hardening, alarms and audit</p></div><div class="irow"><p class="inum">10</p><p class="itx">Verification, sources, disclaimer and license</p></div>
+</div></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="mint" class="s alt">
+<p class="eyebrow">2.2 · Introduction</p>
+<h2>What is Linux Mint?</h2>
+<div class="cards"><div class="card"><h3>What it is</h3>
+<ul class="bul sm"><li>A desktop Linux distribution based on Ubuntu LTS: Mint 22.x uses Ubuntu 24.04</li><li>Its own desktop, Cinnamon, plus MATE and Xfce editions</li><li>Its own tools: Update Manager, Timeshift, Backup Tool, Login Window</li><li>Version 22.3 “Zena” came out in January 2026. It is a long term support release, supported until April 2029</li></ul>
+</div><div class="card edit"><h3>Scope of this guide</h3>
+<ul class="bul sm"><li>Linux Mint 22.x, Cinnamon edition</li><li>LightDM login screen, X11 session</li><li>systemd as the first process</li><li>Other editions and versions differ in the details</li><li>For readers who already use the terminal and know basic Unix concepts</li></ul>
+</div></div>
+<p class="note">Release facts come from the Linux Mint 22.3 release notes. Scope checked on a Mint 22.3 machine.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="ov-123" class="s">
+<p class="eyebrow">3.1 · Overview</p>
+<h2>Blocks 1 to 3: from power-on to your desktop</h2>
+<div class="ocols"><div class="ocol "><h3>1 · System start-up</h3><p class="osub">Power button → login screen</p><p class="ostep">UEFI firmware</p><p class="ostep">Shim and GRUB</p><p class="ostep">Linux kernel</p><p class="ostep">initramfs</p><p class="ostep">systemd (PID 1)</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="ocol "><h3>2 · Login process</h3><p class="osub">Login screen → session scripts</p><p class="ostep">LightDM greeter</p><p class="ostep">PAM authentication</p><p class="ostep">systemd-logind session</p><p class="ostep">Session scripts</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="ocol "><h3>3 · User access</h3><p class="osub">Desktop → shell → logout</p><p class="ostep">Cinnamon session</p><p class="ostep">Terminal and shell</p><p class="ostep">Run things automatically</p><p class="ostep">Logout</p></div></div>
+<p class="note">A linear story: each block hands over to the next. Logout returns you to the login screen of block 2.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="ov-4" class="s alt">
+<p class="eyebrow">3.2 · Overview</p>
+<h2>Block 4: services and daemons</h2>
+<p class="lead">A daemon is a background process with no terminal. A service is how systemd starts, watches and stops one. This is not a step in the story: it is a layer that runs under blocks 1 to 3.</p>
+<div class="chips"><p class="chip">1 · Unit files</p><p class="chip">2 · Enabling a service</p><p class="chip">3 · The target chain</p><p class="chip">4 · Other ways services start</p><p class="chip">5 · User services</p><p class="chip">6 · Not systemd: desktop autostart</p></div>
+<div class="cards"><div class="card"><h3>Starts in block 1</h3>
+<p class="txt">At the systemd step. System services are started on the way to graphical.target.</p>
+</div><div class="card"><h3>Continues in block 2</h3>
+<p class="txt">At login, systemd-logind starts your own user manager, which runs your per-user services.</p>
+</div></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="ov-56" class="s">
+<p class="eyebrow">3.3 · Overview</p>
+<h2>Blocks 5 and 6: security</h2>
+<div class="ocols"><div class="ocol wide"><h3>5 · Network and firewall</h3><p class="osub">What can reach this machine?</p><p class="ostep">Know your connection</p><p class="ostep">What is listening</p><p class="ostep">Firewall</p><p class="ostep">Docker and the firewall</p><p class="ostep">Public Wi-Fi checklist</p></div><div class="ocol wide"><h3>6 · Hardening, alarms and audit</h3><p class="osub">Habits that keep it in good shape</p><p class="ostep">SSH as a client</p><p class="ostep">Updates and sandboxing</p><p class="ostep">Accounts and sudo</p><p class="ostep">Logs and alarms</p><p class="ostep">Recovery and weekly checkup</p></div></div>
+<p class="note">Scenario: a home network, SSH used to connect out to other machines, Docker installed, and a laptop that sometimes joins public Wi-Fi.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b1-uefi" class="s">
+<p class="eyebrow">4.1 · Block 1 · System start-up</p>
+<h2>UEFI firmware</h2>
+<p class="lead">The firmware tests and initializes the hardware, reads its boot entries from NVRAM and loads an EFI program from the EFI System Partition (FAT32). Mint reuses Ubuntu’s folder name, so the entry is usually called “ubuntu”.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/boot/efi/EFI/ubuntu/shimx64.efi</p><p class="why">The first program loaded (a signed shim)</p></div>
+<div class="item"><p class="path">/boot/efi/</p><p class="why">EFI System Partition, mounted here later</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">Firmware setup screen</p><p class="why">Boot order and Secure Boot. The key depends on the maker</p></div>
+<div class="item"><p class="path">NVRAM boot entries</p><p class="why">View or change them with efibootmgr</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">efibootmgr</p><p class="cmd">ls /sys/firmware/efi</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b1-grub" class="s alt">
+<p class="eyebrow">4.2 · Block 1 · System start-up</p>
+<h2>Shim and GRUB</h2>
+<p class="lead">Shim is signed so that Secure Boot trusts it. It loads GRUB, which reads its menu, loads the kernel and the initramfs from /boot, and passes the kernel command line. The menu can be hidden (GRUB_TIMEOUT_STYLE=hidden).</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/boot/grub/grub.cfg</p><p class="why">Generated menu. Never edit it by hand</p></div>
+<div class="item"><p class="path">/boot/vmlinuz-*</p><p class="why">The kernel images</p></div>
+<div class="item"><p class="path">/boot/initrd.img-*</p><p class="why">The initramfs images</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">/etc/default/grub</p><p class="why">Timeout, hidden menu, kernel command line</p></div>
+<div class="item"><p class="path">/etc/default/grub.d/*.cfg</p><p class="why">Drop-ins. Mint ships 50_linuxmint.cfg</p></div>
+<div class="item risk"><p class="path">/etc/grub.d/</p><p class="why">Scripts that build the menu entries. Risky: back up first.</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">cat /etc/default/grub</p><p class="cmd">sudo update-grub  (applies your changes)</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b1-kernel" class="s">
+<p class="eyebrow">4.3 · Block 1 · System start-up</p>
+<h2>Linux kernel</h2>
+<p class="lead">The kernel sets up memory and CPUs, initializes drivers and mounts the initramfs as a temporary root. It receives the command line that GRUB gave it, for example “quiet splash” and the root device.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/proc/cmdline</p><p class="why">The parameters the kernel received</p></div>
+<div class="item"><p class="path">/boot/config-*</p><p class="why">Options the kernel was built with</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">/etc/modprobe.d/*.conf</p><p class="why">Module options and blacklists</p></div>
+<div class="item"><p class="path">/etc/modules-load.d/*.conf</p><p class="why">Modules to load at boot</p></div>
+<div class="item"><p class="path">/etc/sysctl.d/*.conf</p><p class="why">Kernel runtime parameters</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">cat /proc/cmdline</p><p class="cmd">uname -r</p><p class="cmd">sudo sysctl --system  (applies sysctl files)</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b1-initramfs" class="s alt">
+<p class="eyebrow">4.4 · Block 1 · System start-up</p>
+<h2>initramfs</h2>
+<p class="lead">A small filesystem in RAM with the drivers needed to reach the real root: disk controller, filesystem, and disk encryption if used. It mounts the root named in the command line (root=UUID=...) and then starts systemd.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/boot/initrd.img-*</p><p class="why">The image that is unpacked into RAM</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">/etc/initramfs-tools/initramfs.conf</p><p class="why">Build options</p></div>
+<div class="item"><p class="path">/etc/initramfs-tools/modules</p><p class="why">Extra modules to include</p></div>
+<div class="item risk"><p class="path">/etc/initramfs-tools/hooks/</p><p class="why">Custom build hooks. Risky: back up first.</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">ls -lh /boot/initrd.img-*</p><p class="cmd">sudo update-initramfs -u  (rebuilds the image)</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b1-systemd" class="s">
+<p class="eyebrow">4.5 · Block 1 · System start-up</p>
+<h2>systemd (PID 1)</h2>
+<p class="lead">systemd is the first process. It mounts what /etc/fstab lists and starts units in parallel, following their dependencies, until it reaches the default target. On Mint that is graphical.target, which starts LightDM.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/usr/lib/systemd/system/</p><p class="why">Units shipped by packages</p></div>
+<div class="item"><p class="path">/usr/lib/systemd/system/default.target</p><p class="why">A link to graphical.target</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item risk"><p class="path">/etc/fstab</p><p class="why">Filesystems and swap to mount. Risky: back up first.</p></div>
+<div class="item"><p class="path">/etc/systemd/system/*.service</p><p class="why">Your own units</p></div>
+<div class="item"><p class="path">/etc/systemd/system/&lt;unit&gt;.d/override.conf</p><p class="why">Safe override of a packaged unit</p></div>
+<div class="item"><p class="path">/etc/systemd/system/default.target</p><p class="why">Created only by systemctl set-default</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">systemctl get-default</p><p class="cmd">systemd-analyze</p><p class="cmd">systemd-analyze blame</p><p class="cmd">systemd-analyze critical-chain</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b2-greeter" class="s alt">
+<p class="eyebrow">5.1 · Block 2 · Login process</p>
+<h2>LightDM greeter</h2>
+<p class="lead">LightDM, the display manager, starts the X server and the greeter (slick-greeter on Mint), which draws the login screen. The sessions it offers come from the .desktop files in /usr/share/xsessions.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/etc/lightdm/lightdm.conf.d/70-linuxmint.conf</p><p class="why">Mint’s settings: greeter and session wrapper</p></div>
+<div class="item"><p class="path">/usr/share/xsessions/*.desktop</p><p class="why">Available sessions, such as cinnamon.desktop</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">/etc/lightdm/lightdm.conf.d/*.conf</p><p class="why">Autologin, default session, greeter choice</p></div>
+<div class="item"><p class="path">Menu → Login Window</p><p class="why">Mint’s graphical tool for the login screen</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">systemctl status lightdm</p><p class="cmd">ls /usr/share/xsessions</p><p class="cmd">ls /etc/lightdm/lightdm.conf.d</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b2-pam" class="s">
+<p class="eyebrow">5.2 · Block 2 · Login process</p>
+<h2>PAM authentication</h2>
+<p class="lead">The greeter hands your user name and password to PAM (Pluggable Authentication Modules). pam_unix compares the password with the hash in /etc/shadow. Other modules apply limits and unlock the keyring with the same password.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/etc/passwd</p><p class="why">User names, UID, home, shell</p></div>
+<div class="item"><p class="path">/etc/shadow</p><p class="why">Password hashes (root only)</p></div>
+<div class="item"><p class="path">/etc/pam.d/lightdm</p><p class="why">PAM rules for the login screen</p></div>
+<div class="item"><p class="path">/etc/pam.d/common-auth</p><p class="why">Shared authentication rules</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">/etc/security/limits.conf and limits.d/</p><p class="why">Per-user resource limits</p></div>
+<div class="item risk"><p class="path">/etc/pam.d/*</p><p class="why">A mistake here can lock you out. Risky: back up first.</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">ls /etc/pam.d</p><p class="cmd">passwd  (changes your own password)</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b2-logind" class="s alt">
+<p class="eyebrow">5.3 · Block 2 · Login process</p>
+<h2>systemd-logind session</h2>
+<p class="lead">pam_systemd registers the new session with systemd-logind. It creates the runtime directory /run/user/UID, assigns the seat and the virtual terminal, and starts your per-user systemd manager.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/run/user/&lt;UID&gt;/</p><p class="why">Per-user runtime directory, kept in RAM</p></div>
+<div class="item"><p class="path">user@&lt;UID&gt;.service</p><p class="why">Your own “systemd --user” manager</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">/etc/systemd/logind.conf</p><p class="why">Lid switch, idle action, session limits</p></div>
+<div class="item"><p class="path">~/.config/systemd/user/</p><p class="why">Your own user services and timers</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">loginctl list-sessions</p><p class="cmd">loginctl show-user $USER</p><p class="cmd">systemctl --user status</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b2-scripts" class="s">
+<p class="eyebrow">5.4 · Block 2 · Login process</p>
+<h2>Session scripts</h2>
+<p class="lead">A wrapper, /usr/sbin/lightdm-session, loads the profile files. Then /etc/X11/Xsession runs the numbered scripts in Xsession.d, which start the agents and finally the session command: cinnamon-session-cinnamon.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/usr/sbin/lightdm-session</p><p class="why">The wrapper that starts the sequence</p></div>
+<div class="item"><p class="path">/etc/profile and /etc/profile.d/*.sh</p><p class="why">System-wide environment</p></div>
+<div class="item"><p class="path">/etc/X11/Xsession.d/</p><p class="why">Numbered scripts, run in order</p></div>
+<div class="item"><p class="path">/usr/share/xsessions/cinnamon.desktop</p><p class="why">Names the session command</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">~/.profile</p><p class="why">PATH and environment variables</p></div>
+<div class="item"><p class="path">~/.xprofile</p><p class="why">Variables and commands for the GUI session</p></div>
+<div class="item"><p class="path">~/.xsessionrc</p><p class="why">GUI environment, read from Xsession.d</p></div>
+<div class="item"><p class="path">/etc/profile.d/*.sh</p><p class="why">System-wide additions (root)</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">ls /etc/X11/Xsession.d</p><p class="cmd">cp ~/.profile ~/.profile.bak  (before you edit)</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b2-order" class="s alt">
+<p class="eyebrow">5.5 · Block 2 · Login process</p>
+<h2>The order of the login files</h2>
+<div class="cards"><div class="card"><h3>Read in this order at graphical login</h3>
+<ol class="num"><li>/etc/profile</li><li>~/.profile</li><li>/etc/xprofile</li><li>~/.xprofile</li><li>/etc/X11/Xsession.d/*  (among them: ~/.xsessionrc, the GPG and SSH agents)</li><li>cinnamon-session-cinnamon</li></ol>
+</div><div class="card edit"><h3>Three rules</h3>
+<ul class="bul sm"><li>Changes apply at the next login. A new terminal is not enough</li><li>Never print output or run slow commands in these files</li><li>A syntax error in ~/.profile can break the login. Keep a text console (Ctrl+Alt+F3) as a way back</li></ul>
+</div></div>
+<p class="note">Order read from /usr/sbin/lightdm-session on Mint 22.3. Files that don’t exist are skipped.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b3-cinnamon" class="s">
+<p class="eyebrow">6.1 · Block 3 · User access</p>
+<h2>Cinnamon session</h2>
+<p class="lead">cinnamon-session starts the window manager (Muffin), the panel with its applets, the desktop and the settings helpers. Then it launches every .desktop file in the autostart folders. Your saved settings come from dconf.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/etc/xdg/autostart/*.desktop</p><p class="why">System-wide autostart programs</p></div>
+<div class="item"><p class="path">~/.config/dconf/user</p><p class="why">Your saved desktop settings (binary)</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">~/.config/autostart/*.desktop</p><p class="why">Your own autostart programs</p></div>
+<div class="item"><p class="path">~/.local/share/cinnamon/</p><p class="why">Applets, desklets and extensions you installed</p></div>
+<div class="item"><p class="path">~/.config/cinnamon/spices/</p><p class="why">Settings of those applets and desklets</p></div>
+<div class="item"><p class="path">~/.themes and ~/.icons</p><p class="why">Your themes and icons</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">ls /etc/xdg/autostart</p><p class="cmd">cinnamon-settings  (System Settings)</p><p class="cmd">Menu → Startup Applications</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b3-shell" class="s alt">
+<p class="eyebrow">6.2 · Block 3 · User access</p>
+<h2>Terminal and shell: two kinds of shell</h2>
+<div class="cards"><div class="card"><h3>Terminal window in Cinnamon</h3>
+<ul class="bul sm"><li>A non-login, interactive shell</li><li>Reads /etc/bash.bashrc and ~/.bashrc only</li><li>Inherits the environment that the session set up at login</li></ul>
+</div><div class="card"><h3>Text console (Ctrl+Alt+F3) or SSH</h3>
+<ul class="bul sm"><li>A login shell: getty or sshd, then login and PAM</li><li>Bash reads /etc/profile, then the first one it finds of ~/.bash_profile, ~/.bash_login, ~/.profile</li><li>Mint ships ~/.profile, which sources ~/.bashrc</li></ul>
+</div></div>
+<p class="note big">Rule of thumb: variables and PATH go in ~/.profile. Aliases, prompt and functions go in ~/.bashrc.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b3-shellfiles" class="s">
+<p class="eyebrow">6.3 · Block 3 · User access</p>
+<h2>Terminal and shell: the files</h2>
+<p class="lead">Bash reads different files depending on the kind of shell. Know which file you are editing and when it is read, or your change will seem to have no effect.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/etc/bash.bashrc</p><p class="why">System-wide settings for interactive shells</p></div>
+<div class="item"><p class="path">/etc/profile</p><p class="why">System-wide settings for login shells</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">~/.bashrc</p><p class="why">Aliases, prompt, functions, history</p></div>
+<div class="item"><p class="path">~/.bash_aliases</p><p class="why">Aliases in their own file, read by the default .bashrc</p></div>
+<div class="item risk"><p class="path">~/.bash_profile</p><p class="why">If it exists, login shells ignore ~/.profile. Risky: back up first.</p></div>
+<div class="item"><p class="path">~/.inputrc</p><p class="why">Readline key bindings</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">source ~/.bashrc</p><p class="cmd">bash -l -c 'echo $PATH'</p><p class="cmd">echo $0</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b3-auto-map" class="s">
+<p class="eyebrow">6.4 · Block 3 · User access</p>
+<h2>Run things automatically: pick the place</h2>
+<p class="lead">Linux can run your commands at different moments. Choose the place that matches when you want it to run.</p>
+<table class="t"><tr class="th"><th style="width:38%">You want it to run...</th><th style="width:62%">Use</th></tr><tr><td>When you log in to the desktop</td><td>Startup Applications, or a .desktop file in ~/.config/autostart/</td></tr><tr class="band"><td>In every terminal you open</td><td>~/.bashrc</td></tr><tr><td>Once per login (variables, PATH)</td><td>~/.profile</td></tr><tr class="band"><td>On a schedule, as your user</td><td>crontab -e, or a systemd user timer in ~/.config/systemd/user/</td></tr><tr><td>On a schedule, for the whole system</td><td>/etc/cron.d/, /etc/cron.daily/ and the other /etc/cron.* folders</td></tr><tr class="band"><td>Once at every boot</td><td>an @reboot line in your crontab, or a systemd unit</td></tr><tr><td>At boot, as a background service</td><td>a systemd unit in /etc/systemd/system/</td></tr><tr class="band"><td>When a login shell exits</td><td>~/.bash_logout</td></tr></table>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b3-auto-cron" class="s alt">
+<p class="eyebrow">6.5 · Block 3 · User access</p>
+<h2>cron: schedule a command</h2>
+<div class="fields"><p class="field">minute</p><p class="field">hour</p><p class="field">day of month</p><p class="field">month</p><p class="field">day of week</p><p class="field">command</p></div>
+<p class="code one">30 2 * * *  /home/me/bin/backup.sh &gt;&gt; /home/me/cron.log 2&gt;&amp;1</p>
+<div class="cards"><div class="card edit"><h3>Rules that save you time</h3>
+<ul class="bul sm"><li>cron starts with a minimal environment: a short PATH and no desktop session. Use absolute paths</li><li>Redirect the output to a log file, or you will never see the error</li><li>The script needs a shebang line and chmod +x</li><li>Run it by hand first. Then check the syntax with crontab -n &lt;file&gt;</li></ul>
+</div><div class="card"><h3>Alternatives</h3>
+<ul class="bul sm"><li>A systemd user timer: logs in the journal, and Persistent=true catches up after the machine was off</li><li>anacron runs the daily, weekly and monthly folders in /etc/cron.* on machines that are not always on</li><li>Graphical commands such as notify-send need extra setup under cron</li></ul>
+</div></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b3-auto-ex1" class="s">
+<p class="eyebrow">6.6 · Block 3 · User access</p>
+<h2>Example: a script on a schedule</h2>
+<p class="codet">~/bin/hello-cron.sh  (a harmless test script)</p>
+<p class="code">#!/bin/bash<br>echo "$(date '+%F %T') hello from the scheduler" &gt;&gt; /home/me/cron-test.log</p>
+<p class="codet">crontab -e  (add these lines; replace “me” with your user name)</p>
+<p class="code">PATH=/usr/local/bin:/usr/bin:/bin<br># minute hour day-of-month month day-of-week&#160;&#160;command<br>*/5 * * * *&#160;&#160;/home/me/bin/hello-cron.sh &gt;&gt; /home/me/cron.log 2&gt;&amp;1<br>@reboot&#160;&#160;&#160;&#160;&#160;&#160;/home/me/bin/hello-cron.sh &gt;&gt; /home/me/cron.log 2&gt;&amp;1</p>
+<div class="cmds"><p class="cl">Create:</p><p class="cmd">mkdir -p ~/bin</p><p class="cmd">chmod +x ~/bin/hello-cron.sh</p><p class="cmd">~/bin/hello-cron.sh</p><p class="cmd">crontab -n &lt;file&gt;</p><p class="cmd">crontab -e</p><p class="cmd">crontab -l</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b3-auto-ex2" class="s alt">
+<p class="eyebrow">6.7 · Block 3 · User access</p>
+<h2>Example: at login, and a systemd timer</h2>
+<div class="cards"><div class="half"><p class="codet">~/.config/autostart/my-login.desktop</p>
+<p class="code">[Desktop Entry]<br>Type=Application<br>Name=My login script<br>Exec=/home/me/bin/hello-cron.sh<br>Terminal=false</p></div><div class="half"><p class="codet">~/.config/systemd/user/hello.timer  (+ hello.service)</p>
+<p class="code">[Timer]<br>OnCalendar=*-*-* 02:30:00<br>Persistent=true<br>[Install]<br>WantedBy=timers.target</p></div></div>
+<div class="cmds"><p class="cl">Enable:</p><p class="cmd">systemctl --user daemon-reload</p><p class="cmd">systemctl --user enable --now hello.timer</p><p class="cmd">systemctl --user list-timers</p></div>
+<p class="note">hello.service holds [Service] Type=oneshot and ExecStart=%h/bin/hello-cron.sh. Tested: the cron line and the timer both fired. A timer fires within one minute of its set time by default. The autostart file was only syntax-checked.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b3-logout" class="s">
+<p class="eyebrow">6.8 · Block 3 · User access</p>
+<h2>Logout</h2>
+<p class="lead">Logging out ends the Cinnamon session. systemd-logind closes your session, and your user manager stops when no sessions remain, unless lingering is enabled. LightDM shows the greeter again.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">~/.bash_logout</p><p class="why">Run by a login shell when it exits</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">~/.bash_logout</p><p class="why">Cleanup commands, for example clear the screen</p></div>
+<div class="item"><p class="path">loginctl enable-linger &lt;user&gt;</p><p class="why">Keeps your user services running after logout</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">loginctl show-user $USER</p><p class="cmd">loginctl list-sessions</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b4-units" class="s alt">
+<p class="eyebrow">7.1 · Block 4 · Services and daemons</p>
+<h2>Unit files</h2>
+<p class="lead">A unit is a small text file that describes one thing systemd manages: a service, a mount, a socket, a timer or a target. systemd searches several directories. If a name exists in two of them, the higher one wins.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/usr/lib/systemd/system/</p><p class="why">Units shipped by packages. Don’t edit them</p></div>
+<div class="item"><p class="path">/run/systemd/system/</p><p class="why">Runtime and generated units, gone after a reboot</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">/etc/systemd/system/</p><p class="why">Your units and the enable links. Highest priority</p></div>
+<div class="item"><p class="path">/etc/systemd/system/&lt;unit&gt;.d/override.conf</p><p class="why">Safe way to change a packaged unit</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">systemctl cat cron.service</p><p class="cmd">systemctl show -p UnitPath --value</p><p class="cmd">sudo systemctl edit &lt;unit&gt;  (creates an override)</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b4-enable" class="s">
+<p class="eyebrow">7.2 · Block 4 · Services and daemons</p>
+<h2>Enabling a service</h2>
+<p class="lead">A service starts at boot because of a symlink in a .wants directory. “systemctl enable” creates the link and “disable” removes it. The unit’s [Install] section says where it goes: WantedBy=multi-user.target.</p>
+<div class="linkd"><p class="code one">/etc/systemd/system/multi-user.target.wants/cron.service</p><div class="linkmid"><x-shape kind="arrow-down" class="arrd"></x-shape><p class="legt">symlink to</p></div><p class="code one">/usr/lib/systemd/system/cron.service</p></div>
+<p class="note big">Enabling does not start the service now. Use “start”, or “enable --now” to do both.</p>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">systemctl is-enabled cron</p><p class="cmd">systemctl list-unit-files --state=enabled</p><p class="cmd">ls -l /etc/systemd/system/multi-user.target.wants</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b4-targets" class="s alt">
+<p class="eyebrow">7.3 · Block 4 · Services and daemons</p>
+<h2>The target chain</h2>
+<div class="cards"><div class="lay"><div class="layer"><p class="bt">graphical.target</p><p class="bs">starts LightDM, the login screen</p></div><div class="layer"><p class="bt">multi-user.target</p><p class="bs">cron, NetworkManager and the other services</p></div><div class="layer"><p class="bt">basic.target</p><p class="bs">sockets, timers and paths</p></div><div class="layer"><p class="bt">sysinit.target</p><p class="bs">udev, mounts from /etc/fstab, swap</p></div></div><div class="card"><h3>How to read it</h3><ul class="bul sm"><li>Targets are named goals that group units</li><li>Top to bottom: each target pulls in the one below it</li><li>Start order is the reverse: bottom first, graphical.target last</li><li>Units in the same step start in parallel. Only After= and Before= set an order between them</li></ul></div></div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">systemctl get-default</p><p class="cmd">systemctl list-dependencies graphical.target</p><p class="cmd">systemd-analyze critical-chain</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b4-triggers" class="s">
+<p class="eyebrow">7.4 · Block 4 · Services and daemons</p>
+<h2>Other ways services start</h2>
+<p class="lead">Not every service is a boot-time link. Generators create units on the fly: the fstab generator turns /etc/fstab into mount units. Socket units start a service on a connection, timer units on a schedule, path units on a file change.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/usr/lib/systemd/system-generators/</p><p class="why">Programs that generate units at boot</p></div>
+<div class="item"><p class="path">/run/systemd/generator/</p><p class="why">The units they generated (in RAM)</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item risk"><p class="path">/etc/fstab</p><p class="why">Becomes mount units. Risky: back up first.</p></div>
+<div class="item"><p class="path">/etc/systemd/system/*.timer and *.socket</p><p class="why">Your own timers and sockets</p></div>
+<div class="item"><p class="path">/etc/cron.d/ and crontab -e</p><p class="why">Classic scheduled jobs (cron is itself a service)</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">systemctl list-timers</p><p class="cmd">systemctl list-sockets</p><p class="cmd">ls /run/systemd/generator</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b4-user" class="s alt">
+<p class="eyebrow">7.5 · Block 4 · Services and daemons</p>
+<h2>User services</h2>
+<p class="lead">After login, systemd-logind starts user@UID.service, your own “systemd --user” manager. It runs per-user services such as the D-Bus user bus, dconf, the keyring and the audio server, with the same unit format.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/usr/lib/systemd/user/</p><p class="why">User units shipped by packages</p></div>
+<div class="item"><p class="path">/etc/systemd/user/</p><p class="why">System-wide user units</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">~/.config/systemd/user/</p><p class="why">Your own user units and timers</p></div>
+<div class="item"><p class="path">loginctl enable-linger &lt;user&gt;</p><p class="why">Keeps them running after logout</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">systemctl --user list-units --type=service</p><p class="cmd">systemctl --user list-timers</p><p class="cmd">systemctl --user status</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b4-notsystemd" class="s">
+<p class="eyebrow">7.6 · Block 4 · Services and daemons</p>
+<h2>Not systemd: desktop autostart</h2>
+<div class="cards"><div class="card"><h3>A systemd unit</h3>
+<ul class="bul sm"><li>A background daemon with no window</li><li>Starts at boot or at login, without a desktop</li><li>Logs go to the journal</li><li>Lives in /etc/systemd/system/ or ~/.config/systemd/user/</li></ul>
+</div><div class="card edit"><h3>A desktop autostart entry</h3>
+<ul class="bul sm"><li>A program with a window or a tray icon: network applet, update manager, Bluetooth</li><li>Started by cinnamon-session, not by systemd</li><li>Exists only during your graphical session</li><li>Lives in /etc/xdg/autostart/ or ~/.config/autostart/</li></ul>
+</div></div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">ls /etc/xdg/autostart</p><p class="cmd">ls ~/.config/autostart</p><p class="cmd">Menu → Startup Applications</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b5-conn" class="s alt">
+<p class="eyebrow">8.1 · Block 5 · Network and firewall</p>
+<h2>Know your connection</h2>
+<p class="lead">NetworkManager manages Wi-Fi and cable. nmcli shows the active connection, your IP address, the gateway and the DNS servers. For Wi-Fi, check the security type: WPA2 or WPA3 is acceptable. WEP or an open network is not.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/etc/NetworkManager/NetworkManager.conf</p><p class="why">Main NetworkManager settings</p></div>
+<div class="item"><p class="path">/etc/netplan/90-NM-*.yaml</p><p class="why">Saved networks with Wi-Fi passwords (root only)</p></div>
+<div class="item"><p class="path">/run/NetworkManager/system-connections/</p><p class="why">The same networks, generated at runtime</p></div>
+<div class="item"><p class="path">/etc/resolv.conf</p><p class="why">DNS resolver, a link managed by systemd-resolved</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">Network settings (per connection)</p><p class="why">For example “Connect automatically”</p></div>
+<div class="item"><p class="path">/etc/NetworkManager/conf.d/*.conf</p><p class="why">Drop-in settings</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">nmcli device status</p><p class="cmd">nmcli -f SSID,SECURITY,SIGNAL device wifi list</p><p class="cmd">ip -br addr</p><p class="cmd">ip route</p><p class="cmd">resolvectl status</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b5-listen" class="s">
+<p class="eyebrow">8.2 · Block 5 · Network and firewall</p>
+<h2>What is listening</h2>
+<p class="lead">A port is only a risk if a program is listening on it. ss lists the listening sockets and the program behind each one. On a home desktop the list of network-wide listeners should be short, and you should know why each one is there.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/etc/services</p><p class="why">Names for the well-known port numbers</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">/etc/avahi/avahi-daemon.conf</p><p class="why">Network discovery service (mDNS)</p></div>
+<div class="item"><p class="path">/etc/cups/cupsd.conf</p><p class="why">Which addresses the print service listens on</p></div>
+<div class="item"><p class="path">systemctl disable --now &lt;unit&gt;</p><p class="why">Turning a service off closes its port</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">ss -tulpn</p><p class="cmd">sudo ss -tulpn  (names for all users)</p><p class="cmd">ss -tn state established</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b5-ss" class="s alt">
+<p class="eyebrow">8.3 · Block 5 · Network and firewall</p>
+<h2>How to read ss -tulpn</h2>
+<p class="lead">Read the Local Address column. It tells you who can connect.</p>
+<table class="t"><tr class="th"><th style="width:34%">Local address</th><th style="width:33%">Who can connect</th><th style="width:33%">Typical example</th></tr><tr><td>127.0.0.1:631 or [::1]:631</td><td>Only programs on this machine</td><td>Printing service (CUPS)</td></tr><tr class="band"><td>0.0.0.0:5353 or [::]:5353</td><td>Any machine that can reach you</td><td>Network discovery (mDNS, avahi)</td></tr><tr><td>0.0.0.0:22</td><td>Any machine that can reach you</td><td>An SSH server, if you run one</td></tr><tr class="band"><td>192.168.1.20:8080</td><td>Machines on that network only</td><td>A service bound to one address</td></tr></table>
+<p class="note">If port 22 is listening, you are running an SSH server. That needs its own hardening, which this guide does not cover.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b5-fw" class="s">
+<p class="eyebrow">8.4 · Block 5 · Network and firewall</p>
+<h2>Firewall: what reaches your ports</h2>
+<p class="lead">A firewall decides which packets may reach your ports. On Mint the front end is ufw, which writes rules for nftables in the kernel. The usual home policy: deny incoming, allow outgoing.</p>
+<div class="flow"><div class="box"><p class="bt">Internet</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Network card</p><p class="bs">Wi-Fi or cable</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box hi"><p class="bt">Firewall</p><p class="bs">ufw / nftables</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Open port</p><p class="bs">a listening socket</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Program</p><p class="bs">a service</p></div></div>
+<div class="legend"><div class="leg"><p class="tag ok">ALLOWED</p><p class="legt">A reply to a connection you started. The firewall is stateful, so it remembers your outgoing connections.</p></div><div class="leg"><p class="tag no">DROPPED</p><p class="legt">A new connection from outside to a port that has no allow rule.</p></div></div>
+<p class="note">A firewall is a second line of defense. It does not replace turning off services you don’t need.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b5-fwfiles" class="s alt">
+<p class="eyebrow">8.5 · Block 5 · Network and firewall</p>
+<h2>Firewall: files and commands</h2>
+<p class="lead">ufw keeps its settings in /etc/ufw and /etc/default/ufw. Always confirm the state with “ufw status”: it must say “Status: active”. Mint includes a graphical front end, shown in the menu as Firewall Configuration.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/etc/ufw/ufw.conf</p><p class="why">ENABLED=yes or no</p></div>
+<div class="item"><p class="path">/etc/ufw/user.rules</p><p class="why">Generated from your rules. Not for hand editing</p></div>
+<div class="item"><p class="path">/var/log/ufw.log</p><p class="why">Blocked packets, when logging is on</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">/etc/default/ufw</p><p class="why">Default policies, IPv6 on or off</p></div>
+<div class="item"><p class="path">/etc/ufw/applications.d/</p><p class="why">Profiles that give an application a name</p></div>
+<div class="item"><p class="path">Menu → Firewall Configuration</p><p class="why">Graphical front end (gufw), included in Mint</p></div>
+<div class="item risk"><p class="path">/etc/ufw/*.rules edited by hand</p><p class="why">A mistake can open or lock ports. Risky: back up first.</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">sudo ufw status verbose</p><p class="cmd">sudo ufw status numbered</p><p class="cmd">sudo nft list ruleset</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b5-docker" class="s alt">
+<p class="eyebrow">8.6 · Block 5 · Network and firewall</p>
+<h2>Docker can go around ufw</h2>
+<p class="lead">When you publish a port (-p 8080:80), Docker writes its own firewall rules. Traffic to that port is forwarded to the container, and a ufw “deny” does not stop it.</p>
+<p class="lane">Normal traffic</p><div class="flow"><div class="box"><p class="bt">Internet</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Network card</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box hi"><p class="bt">ufw rules</p><p class="bs">incoming filter</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Open port</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Program</p></div></div>
+<p class="lane warnc">Traffic to a published Docker port</p><div class="flow"><div class="box"><p class="bt">Internet</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Network card</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box warn"><p class="bt">Docker’s own rules</p><p class="bs">forwarding (NAT)</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Container</p></div></div>
+<p class="note">Don’t trust “ufw status” alone for containers. Test from another machine. Source: Docker documentation, “Packet filtering and firewalls”.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b5-docker2" class="s">
+<p class="eyebrow">8.7 · Block 5 · Network and firewall</p>
+<h2>Docker: safer habits</h2>
+<div class="cards"><div class="card edit"><h3>Safer habits</h3>
+<ul class="bul sm"><li>Publish to localhost only: -p 127.0.0.1:8080:80</li><li>Publish only the ports you need</li><li>Membership of the docker group equals root on that machine</li><li>Don’t mount /var/run/docker.sock into containers you don’t trust</li></ul>
+</div><div class="card"><h3>Where it matters</h3>
+<ul class="bul sm"><li>Behind a home router the risk is smaller: the router blocks incoming connections</li><li>On public Wi-Fi, a container published on all addresses can be reached by everyone on that network</li><li>Check the ports: lines in your docker-compose.yml files</li></ul>
+</div></div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">sudo docker ps</p><p class="cmd">sudo docker network ls</p><p class="cmd">ss -tulpn</p><p class="cmd">getent group docker</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b5-wifi" class="s alt">
+<p class="eyebrow">8.8 · Block 5 · Network and firewall</p>
+<h2>Public Wi-Fi checklist (laptop)</h2>
+<p class="lead">On a public network the router is not yours, and strangers share the same local network.</p>
+<ul class="bul chk"><li>Firewall active with deny incoming, and no Docker container published on all addresses</li><li>Sharing and discovery services off if unused: file sharing, avahi, printing (check with ss)</li><li>Don’t auto-connect to open networks. Prefer WPA2 or WPA3, or your phone’s hotspot</li><li>Use a VPN for anything sensitive</li><li>HTTPS only. Treat a certificate warning as a stop sign</li><li>Lock the screen when you step away. Turn Bluetooth off if unused</li><li>Install pending updates before you travel</li></ul>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">nmcli -f NAME,AUTOCONNECT connection show</p><p class="cmd">sudo ufw status verbose</p><p class="cmd">ss -tulpn</p><p class="cmd">nmcli radio</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b5-vpn" class="s">
+<p class="eyebrow">8.9 · Block 5 · Network and firewall</p>
+<h2>Public Wi-Fi: about VPNs</h2>
+<div class="cards"><div class="card"><h3>What a VPN does</h3>
+<ul class="bul sm"><li>It encrypts the traffic between your laptop and the VPN server, so people on the same Wi-Fi can’t read it</li><li>It does not make you anonymous. You move your trust from the Wi-Fi to the VPN provider</li><li>Mint’s network settings include a VPN section. The OpenVPN plugin is installed, and NetworkManager also documents WireGuard (not tested here)</li><li>You can also run a VPN to your own home router or server</li></ul>
+</div><div class="card edit"><h3>Two providers that publish independent audits</h3>
+<ul class="bul sm"><li>Mullvad</li><li>Proton VPN</li><li>A starting point, not an endorsement. No affiliation. The services were not tested here</li><li>Both offer official Linux apps for Ubuntu, Debian and Fedora. Proton has a Mint guide. Mullvad does not list Mint as supported</li></ul>
+</div></div>
+<p class="note">Audit claims come from press coverage and a provider blog. Linux support comes from the providers’ own sites (see Sources).</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b6-ssh" class="s alt">
+<p class="eyebrow">9.1 · Block 6 · Hardening, alarms and audit</p>
+<h2>SSH as a client</h2>
+<p class="lead">When you connect out to other machines, your private key is the secret to protect. Use an ed25519 key with a passphrase. Give servers only the public key. A “host key changed” warning is a reason to stop, not something to ignore.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">~/.ssh/id_ed25519</p><p class="why">Private key. Never share it or copy it around</p></div>
+<div class="item"><p class="path">~/.ssh/id_ed25519.pub</p><p class="why">Public key. Safe to share</p></div>
+<div class="item"><p class="path">~/.ssh/known_hosts</p><p class="why">Fingerprints of servers you have connected to</p></div>
+<div class="item"><p class="path">/etc/ssh/ssh_config and ssh_config.d/</p><p class="why">System-wide client defaults</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">~/.ssh/config</p><p class="why">Host aliases, IdentityFile, ProxyJump</p></div>
+<div class="item"><p class="path">Permissions: ~/.ssh 700, private keys 600</p><p class="why">ssh refuses keys that other users can read</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">ls -ld ~/.ssh</p><p class="cmd">ls -l ~/.ssh</p><p class="cmd">ssh-add -l</p><p class="cmd">ssh -G &lt;host&gt;</p><p class="cmd">ssh -v &lt;host&gt;</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b6-sshcfg" class="s">
+<p class="eyebrow">9.2 · Block 6 · Hardening, alarms and audit</p>
+<h2>SSH: a config example, and the agent</h2>
+<div class="cards"><div class="half"><p class="codet">~/.ssh/config  (example values)</p>
+<p class="code">Host home-server<br>&#160;&#160;HostName 192.168.1.20<br>&#160;&#160;User me<br>&#160;&#160;IdentityFile ~/.ssh/id_ed25519<br>&#160;&#160;ForwardAgent no<br>&#160;<br>Host remote-box<br>&#160;&#160;HostName remote.example.org<br>&#160;&#160;ProxyJump home-server</p></div><div class="card edit"><h3>The agent, and hopping through a host</h3>
+<ul class="bul sm"><li>ssh-agent keeps the unlocked key in memory, so you type the passphrase once</li><li>Agent forwarding (-A, ForwardAgent yes) is risky: root on the remote machine can use your agent while you are connected</li><li>Prefer ProxyJump (-J) to reach a machine through another one</li></ul>
+</div></div>
+<p class="note">ssh parses this example correctly (checked with ssh -G). “ssh-add -l” reports an error when no key is loaded: that is normal.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b6-updates" class="s alt">
+<p class="eyebrow">9.3 · Block 6 · Hardening, alarms and audit</p>
+<h2>Updates and sandboxing</h2>
+<p class="lead">Most real attacks use known bugs that updates already fix. Add software only from sources you trust: every extra repository is code that can run as root. AppArmor, on by default, confines programs to what a profile allows.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/etc/apt/sources.list.d/</p><p class="why">The repositories you have added</p></div>
+<div class="item"><p class="path">/etc/apt/keyrings/ and /etc/apt/trusted.gpg.d/</p><p class="why">Keys that decide which repositories are trusted</p></div>
+<div class="item"><p class="path">/etc/apparmor.d/</p><p class="why">AppArmor profiles</p></div>
+<div class="item"><p class="path">/var/log/apt/history.log</p><p class="why">What was installed or removed, and when</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">Menu → Update Manager</p><p class="why">Check and install updates</p></div>
+<div class="item"><p class="path">Menu → Software Sources</p><p class="why">Choose and review repositories</p></div>
+<div class="item"><p class="path">/etc/apparmor.d/local/</p><p class="why">Local additions to profiles</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">apt list --upgradable</p><p class="cmd">ls /etc/apt/sources.list.d/</p><p class="cmd">sudo aa-status</p><p class="cmd">flatpak list</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b6-accounts" class="s">
+<p class="eyebrow">9.4 · Block 6 · Hardening, alarms and audit</p>
+<h2>Accounts and sudo</h2>
+<p class="lead">Know who can become root and who has logged in. sudo rights come from the sudo group and from files in /etc/sudoers.d/. The docker group is root-equivalent too. A strong password plus an automatic screen lock protects an unattended laptop.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/etc/passwd and /etc/group</p><p class="why">Users and group membership</p></div>
+<div class="item"><p class="path">/etc/sudoers</p><p class="why">Never edit it directly: use visudo</p></div>
+<div class="item"><p class="path">/var/log/wtmp and /var/log/btmp</p><p class="why">Login records read by last and lastb</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item risk"><p class="path">/etc/sudoers.d/*</p><p class="why">Extra sudo rules. Edit only with visudo. Risky: back up first.</p></div>
+<div class="item"><p class="path">Menu → Screensaver</p><p class="why">Lock the screen after a short idle time</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">id</p><p class="cmd">getent group sudo docker</p><p class="cmd">last -n 10</p><p class="cmd">sudo lastb -n 10</p><p class="cmd">sudo -l</p><p class="cmd">chage -l $USER</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b6-logs" class="s alt">
+<p class="eyebrow">9.5 · Block 6 · Hardening, alarms and audit</p>
+<h2>Logs and alarms</h2>
+<p class="lead">systemd collects logs in the journal, and journalctl reads it. Logins, sudo and failed passwords are also written to /var/log/auth.log. A log only helps if someone looks, so an alarm turns an event into a desktop notification.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/var/log/auth.log</p><p class="why">Authentication log (written by rsyslog)</p></div>
+<div class="item"><p class="path">/var/log/journal/</p><p class="why">The persistent journal</p></div>
+<div class="item"><p class="path">/etc/systemd/journald.conf</p><p class="why">Journal size and retention</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">~/.local/bin/</p><p class="why">Where your alarm script would live</p></div>
+<div class="item"><p class="path">~/.config/systemd/user/</p><p class="why">Where its timer and service would live</p></div>
+<div class="item"><p class="path">/etc/systemd/journald.conf</p><p class="why">Keep logs longer, or limit their size</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">journalctl -p err -b</p><p class="cmd">journalctl _COMM=sudo --since today</p><p class="cmd">systemctl --user list-timers</p><p class="cmd">groups</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b6-alarm" class="s">
+<p class="eyebrow">9.6 · Block 6 · Hardening, alarms and audit</p>
+<h2>Example: a desktop alarm for failed logins</h2>
+<p class="codet">~/.local/bin/auth-alert.sh</p>
+<p class="code">#!/bin/bash<br>n=$(journalctl --since "-15 min" --no-pager -q | grep -ci "authentication failure")<br>if [ "$n" -gt 0 ]; then<br>&#160;&#160;notify-send -u critical "Security alert" "$n failed authentication attempts in 15 minutes"<br>fi</p>
+<div class="cards"><div class="half"><p class="codet">auth-alert.service</p>
+<p class="code">[Service]<br>Type=oneshot<br>ExecStart=%h/.local/bin/auth-alert.sh</p></div><div class="half"><p class="codet">auth-alert.timer</p>
+<p class="code">[Timer]<br>OnBootSec=5min<br>OnUnitActiveSec=15min<br>[Install]&#160;&#160;WantedBy=timers.target</p></div></div>
+<p class="note">Tested: run by its timer as a user service, the notification was sent (with a wider time window, to find old entries). Not tested: a real failed login inside the 15-minute window. Your user must be able to read the journal (group adm or systemd-journal).</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b6-recovery" class="s alt">
+<p class="eyebrow">9.7 · Block 6 · Hardening, alarms and audit</p>
+<h2>Recovery: Timeshift</h2>
+<p class="lead">Security also means being able to recover. Timeshift, included in Mint, takes snapshots of the system files so you can roll back a bad update. By default it leaves out your personal files, so back up your home folder separately.</p>
+<div class="cards">
+<div class="card"><h3>Files involved</h3>
+<div class="item"><p class="path">/etc/timeshift/timeshift.json</p><p class="why">Timeshift settings</p></div>
+<div class="item"><p class="path">/timeshift/</p><p class="why">The snapshots, on the disk you chose</p></div>
+</div>
+<div class="card edit"><h3>You can customize</h3>
+<div class="item"><p class="path">Menu → Timeshift</p><p class="why">Schedule, location, what to include</p></div>
+<div class="item"><p class="path">Menu → Backup Tool</p><p class="why">Backup of your personal files</p></div>
+</div>
+</div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">sudo timeshift --list</p><p class="cmd">df -h</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b6-weekly" class="s">
+<p class="eyebrow">9.8 · Block 6 · Hardening, alarms and audit</p>
+<h2>The weekly ten-minute checkup</h2>
+<p class="lead">One pass through the look commands of blocks 5 and 6.</p>
+<ul class="bul chk"><li>Update Manager: install pending updates</li><li>ss -tulpn: any listener you can’t explain?</li><li>sudo ufw status verbose: still active, still deny incoming?</li><li>sudo docker ps: any container published on 0.0.0.0?</li><li>last and sudo lastb: any login you don’t recognize?</li><li>journalctl -p err -b: new errors since last week?</li><li>Timeshift: is the latest snapshot recent? And the backup of your home folder?</li><li>ls -l ~/.ssh: permissions still 700 and 600?</li></ul>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="b6-tools" class="s alt">
+<p class="eyebrow">9.9 · Block 6 · Hardening, alarms and audit</p>
+<h2>Optional third-party tools</h2>
+<p class="lead">None of these is needed for the checks above. Installing software is a change to your system.</p>
+<table class="t"><tr class="th"><th style="width:16%">Tool</th><th style="width:52%">What it adds</th><th style="width:32%">Install</th></tr><tr><td>nethogs</td><td>Shows which program is using the network right now</td><td>sudo apt install nethogs</td></tr><tr class="band"><td>nmap</td><td>Scans ports as an outsider would. Scan only your own machines</td><td>sudo apt install nmap</td></tr><tr><td>lynis</td><td>Audits the system and suggests hardening steps</td><td>sudo apt install lynis</td></tr><tr class="band"><td>fail2ban</td><td>Bans addresses after repeated failed logins. Only useful if you run a server</td><td>sudo apt install fail2ban</td></tr><tr><td>dconf-editor</td><td>Browse and edit the desktop settings database</td><td>sudo apt install dconf-editor</td></tr></table>
+<p class="note">The package names were confirmed in the Mint 22.3 repositories. The tools themselves were not installed or run.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="end-verified" class="s">
+<p class="eyebrow">10.1 · Closing</p>
+<h2>What was verified, and what was not</h2>
+<div class="cards"><div class="card edit"><h3>Checked on a Linux Mint 22.3 machine</h3>
+<ul class="bul sm"><li>File and folder paths, and the Mint menu names</li><li>The order in which login files are read</li><li>Defaults: AppArmor on, firewall drops incoming</li><li>Every look command, with and without sudo, ran without error</li><li>Examples run for real in a test: the cron line, the systemd timer and the alarm notification</li></ul>
+</div><div class="card"><h3>Not verified</h3>
+<ul class="bul sm"><li>Commands that change the system were not run: update-grub, update-initramfs, sysctl --system</li><li>The autostart file at a real login, and a real failed login inside the alarm’s 15-minute window</li><li>Third-party tools: package names confirmed, the tools themselves not run</li><li>The key that opens the GRUB menu, and a real WireGuard connection</li><li>The two VPN services themselves, their price and their terms</li></ul>
+</div></div>
+<p class="note">One machine is not every machine. Paths and defaults can differ on other editions and versions.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="end-sources" class="s alt">
+<p class="eyebrow">10.2 · Closing</p>
+<h2>Sources</h2>
+<table class="t"><tr class="th"><th style="width:36%">Topic</th><th style="width:64%">Source</th></tr><tr><td>Paths, defaults, file order, command checks</td><td>Read-only checks on a Linux Mint 22.3 Cinnamon machine, November 2026</td></tr><tr class="band"><td>Mint 22.3 release, base and support</td><td>Linux Mint 22.3 release notes (linuxmint.com) and the Linux Mint blog</td></tr><tr><td>Docker and ufw</td><td>Docker documentation: “Packet filtering and firewalls” and “Port publishing and mapping”</td></tr><tr class="band"><td>VPN audits and Linux apps</td><td>TechRadar (Proton VPN audit); Mullvad blog (audit); mullvad.net and protonvpn.com (Linux apps)</td></tr><tr><td>Concepts and explanations</td><td>General Linux knowledge, written with Claude Fable 5.2</td></tr></table>
+<p class="note">Official documentation was used where it was found. It changes over time, so check it again before you rely on a detail.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="end-legal" class="s alt">
+<p class="eyebrow">10.3 · Closing</p>
+<h2>Disclaimer, license and credits</h2>
+<div class="cards"><div class="card"><h3>Disclaimer</h3>
+<ul class="bul sm"><li>Educational material, provided as is, with no warranty</li><li>Not affiliated with or endorsed by Linux Mint, Canonical, Docker or any vendor named here</li><li>Read and understand a command before you run it. Back up before you edit system files</li><li>A security baseline, not a guarantee</li></ul>
+</div><div class="card edit"><h3>License and credits</h3>
+<div class="licrow"><svg aria-label="Creative Commons Attribution (CC BY) license icons" width="150" height="64" viewBox="0 0 150 64"><circle cx="32" cy="32" r="28" fill="none" stroke="#17251C" stroke-width="5"/><path d="M29 25 a8.5 8.5 0 1 0 0 14" fill="none" stroke="#17251C" stroke-width="5"/><path d="M46 25 a8.5 8.5 0 1 0 0 14" fill="none" stroke="#17251C" stroke-width="5"/><circle cx="110" cy="32" r="28" fill="none" stroke="#17251C" stroke-width="5"/><circle cx="110" cy="19" r="5.5" fill="#17251C"/><path d="M101 28 h18 v13 h-4.5 v13 h-9 v-13 h-4.5 z" fill="#17251C"/></svg><p class="lictx">CC BY 4.0</p></div>
+<ul class="bul sm"><li>You may share and adapt this work, also commercially, if you give credit</li><li>Author: Ángel Rodríguez Gil</li><li>Created with AI assistance: Claude Fable 5.2 (Anthropic)</li><li>Version 01, November 2026</li><li>creativecommons.org/licenses/by/4.0</li></ul>
+</div></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<script>function fit(){document.body.style.zoom=Math.min(1,(innerWidth-20)/1920)}fit();addEventListener('resize',fit)</script>
+</body></html>

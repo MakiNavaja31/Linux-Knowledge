@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linux under the Hood</title>
+<style>
+  :root {
+    --bg: #0e1511;
+    --panel: #16211b;
+    --panel2: #1c2a23;
+    --line: #2b3d33;
+    --text: #e6efe9;
+    --muted: #9bb0a4;
+    --mint: #87cf3e;
+    --mint-dim: #3f6a1f;
+    --amber: #f0b44c;
+    --c1: #5bb8f0;
+    --c2: #c792ea;
+    --c3: #87cf3e;
+    --c4: #4dd0c4;
+    --c5: #7aa2ff;
+    --c6: #ff8fb1;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif; line-height: 1.5; }
+  header { padding: 28px 20px 8px; max-width: 1180px; margin: 0 auto; }
+  h1 { margin: 0 0 6px; font-size: clamp(1.4rem, 3vw, 2rem); }
+  h1 span { color: var(--mint); }
+  header p { margin: 0; color: var(--muted); max-width: 70ch; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 12px; font-size: .85rem; color: var(--muted); }
+
+  .controls { position: sticky; top: 0; z-index: 5; background: rgba(14,21,17,.92);
+    backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); margin-top: 14px; }
+  .controls-inner { max-width: 1180px; margin: 0 auto; padding: 10px 20px; display: flex; flex-wrap: wrap;
+    align-items: center; gap: 8px; }
+  button, select { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 14px; cursor: pointer; }
+  button:hover, select:hover { border-color: var(--mint-dim); }
+  button:focus-visible, select:focus-visible, .node:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; }
+  button.primary { background: var(--mint); color: #10200a; border-color: var(--mint); font-weight: 600; min-width: 92px; }
+  button:disabled { opacity: .4; cursor: default; }
+  .counter { margin-left: auto; color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .progress { height: 3px; background: var(--line); }
+  .progress > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--c1), var(--c2), var(--c3));
+    transition: width .5s ease; }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 20px; }
+  .blocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .block { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 14px 8px;
+    position: relative; transition: border-color .4s, box-shadow .4s; }
+  .block.active { border-color: var(--bc); box-shadow: 0 0 0 1px var(--bc), 0 8px 30px -12px var(--bc); }
+  .block h2 { margin: 0; font-size: 1.05rem; color: var(--bc); }
+  .block .sub { margin: 2px 0 12px; font-size: .82rem; color: var(--muted); }
+  .block:not(:last-child)::after { content: "➜"; position: absolute; right: -17px; top: 18px; color: var(--muted);
+    font-size: 1.2rem; z-index: 2; background: var(--bg); line-height: 1; padding: 2px 0; }
+  ol { list-style: none; margin: 0; padding: 0; }
+  li { position: relative; padding-left: 30px; }
+  li::before { content: ""; position: absolute; left: 9px; top: -10px; bottom: calc(100% - 12px);
+    width: 2px; background: var(--line); }
+  li:first-child::before { display: none; }
+  li.done::before { background: var(--bc); }
+  li.current::before { background: repeating-linear-gradient(180deg, var(--bc) 0 6px, transparent 6px 12px);
+    background-size: 2px 12px; animation: flow .6s linear infinite; }
+  @keyframes flow { to { background-position: 0 12px; } }
+  .node { display: block; width: 100%; text-align: left; background: none; border: 1px solid transparent; padding: 8px 8px 8px 4px;
+    margin: 4px 0; border-radius: 8px; position: relative; color: var(--muted); }
+  .node::before { content: ""; position: absolute; left: -26px; top: 13px; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--panel); border: 2px solid var(--line); transition: all .3s; }
+  li.done .node { color: var(--text); }
+  li.done .node::before { background: var(--bc); border-color: var(--bc); }
+  li.current .node { color: var(--text); background: var(--panel2); border-color: var(--bc); }
+  li.current .node::before { background: var(--bc); border-color: var(--bc); animation: pulse 1.4s ease-out infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 var(--bc); } 100% { box-shadow: 0 0 0 11px transparent; } }
+  .node b { display: block; font-size: .95rem; }
+  .node small { font-size: .78rem; color: var(--muted); }
+
+  .detail { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 20px; border-top: 3px solid var(--bc, var(--mint)); }
+  .detail.enter { animation: fade .45s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .badge { display: inline-block; font-size: .75rem; padding: 2px 10px; border-radius: 99px; border: 1px solid var(--bc);
+    color: var(--bc); margin-bottom: 6px; }
+  .detail h3 { margin: 0 0 8px; font-size: 1.35rem; }
+  .detail p { margin: 0 0 8px; max-width: 80ch; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+  .col { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .col h4 { margin: 0 0 8px; font-size: .9rem; display: flex; align-items: center; gap: 8px; }
+  .col.edit { border-color: var(--mint-dim); }
+  .col.edit h4 { color: var(--mint); }
+  .col ul { list-style: none; margin: 0; padding: 0; }
+  .col li { padding: 6px 0; border-top: 1px dashed var(--line); padding-left: 0; }
+  .col li:first-child { border-top: 0; }
+  .col li::before { display: none; }
+  code { font-family: ui-monospace, "Ubuntu Mono", Menlo, Consolas, monospace; font-size: .85rem; background: #0b110e;
+    border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; word-break: break-all; }
+  .col li.risk code { border-color: var(--amber); }
+  .why { display: block; font-size: .82rem; color: var(--muted); margin-top: 2px; }
+  .warn { color: var(--amber); font-size: .8rem; }
+  .none { color: var(--muted); font-style: italic; font-size: .88rem; }
+  .cmd { margin-top: 14px; font-size: .9rem; color: var(--muted); }
+  .cmd code { color: var(--text); display: inline-block; margin: 2px 4px 2px 0; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  /* Services and daemons card */
+  .svc { margin-top: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 16px 18px; --bc: var(--c4); transition: border-color .4s, box-shadow .4s; scroll-margin-top: 90px; }
+  .svc.linked { border-color: var(--bc); box-shadow: 0 0 0 1px var(--bc), 0 8px 30px -12px var(--bc); }
+  .svc h2 { margin: 0; font-size: 1.05rem; color: var(--bc); }
+  .svc .sub { color: var(--muted); font-size: .85rem; margin: 4px 0 12px; max-width: 85ch; }
+  .svc .detail { margin-top: 0; background: var(--bg); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .chip { font-size: .88rem; padding: 6px 12px; color: var(--muted); }
+  .chip.current { border-color: var(--bc); background: var(--panel2); color: var(--text); }
+  .chip.done { color: var(--text); }
+  .svc-nav { display: flex; gap: 8px; margin-top: 12px; }
+  .jump { margin-top: 14px; border-color: var(--c4); color: var(--c4); }
+
+  /* Small visuals inside the detail panel */
+  .viz { margin: 12px 0 4px; }
+  .layers { display: flex; flex-direction: column; gap: 6px; max-width: 560px; }
+  .layer { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; background: var(--panel2); opacity: .35; }
+  .layer b { font-family: ui-monospace, "Ubuntu Mono", Menlo, Consolas, monospace; font-size: .9rem; }
+  .layer small { display: block; color: var(--muted); font-size: .8rem; }
+  .layers .layer { animation: lit .6s ease forwards; animation-delay: calc(var(--i) * .9s); }
+  @keyframes lit { to { opacity: 1; border-color: var(--bc); box-shadow: 0 0 14px -6px var(--bc); } }
+  .viz-note { font-size: .8rem; color: var(--muted); margin-top: 8px; }
+  .pathbox { max-width: 640px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .pathbox .arrow { color: var(--bc); font-size: .85rem; animation: bob 1.2s ease-in-out infinite; padding-left: 14px; }
+  @keyframes bob { 50% { transform: translateY(5px); } }
+
+  /* Firewall diagram, checklists, snippets, tools */
+  .fwwrap { max-width: 720px; }
+  .fwsvg { width: 100%; height: auto; display: block; }
+  @media (max-width: 700px) {
+    .fwwrap { overflow-x: auto; padding-bottom: 6px; }
+    .fwsvg { min-width: 620px; } /* keep the labels readable on a phone: the diagram scrolls sideways */
+  }
+  .fwsvg .bx { fill: var(--panel2); stroke: var(--line); stroke-width: 1.5; }
+  .fwsvg .bx.fw { stroke: var(--bc); stroke-width: 2.5; }
+  .fwsvg .bx.dk { stroke: #ff9f43; }
+  .fwsvg text { fill: var(--text); font-size: 13px; text-anchor: middle; font-family: inherit; }
+  .fwsvg .lg { fill: var(--muted); font-size: 12px; text-anchor: start; }
+  .fwsvg .ln { stroke: var(--line); stroke-width: 2; }
+  .fwsvg .route { fill: none; stroke: #ff9f43; stroke-width: 2; stroke-dasharray: 5 5; opacity: .7; }
+  .fwsvg .ok { fill: #4ade80; }
+  .fwsvg .bad { fill: #f87171; }
+  .fwsvg .dkc { fill: #ff9f43; }
+  .fwsvg text.x { fill: #f87171; font-size: 24px; font-weight: 700; }
+  .checks { list-style: none; margin: 0; padding: 0; max-width: 680px; }
+  .checks li { position: relative; padding: 6px 0 6px 30px; opacity: 0;
+    animation: tick .4s ease both; animation-delay: calc(var(--i) * .35s); }
+  .checks li::before, .checks li:first-child::before { content: "✓"; display: block; position: absolute; left: 4px; top: 6px;
+    bottom: auto; width: auto; background: none; color: var(--bc); font-weight: 700; }
+  @keyframes tick { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+  .wtwrap { overflow-x: auto; max-width: 820px; }
+  table.wt { border-collapse: collapse; width: 100%; font-size: .88rem; }
+  table.wt th, table.wt td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  table.wt th { color: var(--muted); font-weight: 600; background: var(--panel2); }
+  table.wt tbody tr { opacity: 0; animation: tick .4s ease both; animation-delay: calc(var(--i) * .25s); }
+  .col.tools { margin-top: 14px; border-color: var(--line); }
+  .col.tools h4 { color: var(--text); }
+  .snipbox { margin-top: 14px; }
+  .snip-t { font-size: .82rem; color: var(--muted); margin: 8px 0 2px; }
+  pre.snip { background: #0b110e; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; overflow: auto;
+    font-family: ui-monospace, "Ubuntu Mono", Menlo, Consolas, monospace; font-size: .8rem; line-height: 1.45; margin: 0; }
+  .links { margin-top: 12px; font-size: .85rem; color: var(--muted); }
+  .links a { color: var(--c4); }
+
+  footer { max-width: 1180px; margin: 0 auto; padding: 0 20px 36px; color: var(--muted); font-size: .8rem; }
+
+  @media (max-width: 900px) {
+    .blocks { grid-template-columns: 1fr; }
+    .block:not(:last-child)::after { content: "⬇"; right: auto; left: 50%; top: auto; bottom: -19px; }
+    .cols { grid-template-columns: 1fr; }
+    .counter { margin-left: 0; width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .layer, .checks li, table.wt tbody tr { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Linux under the Hood · <span>Linux Mint 22, from power-on to a secured desktop</span></h1>
+  <p>Three blocks: system start-up, login process and user access. Step through each stage to see what happens, which files are involved and which ones you can customize. Cards 4 to 6 below cover the services and daemons layer, network and firewall, and hardening, alarms and audit. This is the generic Mint 22 flow (Cinnamon edition, LightDM).</p>
+  <div class="legend">
+    <span><span class="dot" style="background:#3a4a41"></span>Files involved</span>
+    <span><span class="dot" style="background:var(--mint)"></span>Files you can customize</span>
+    <span><span class="dot" style="background:var(--amber)"></span>Risky to edit: back up first</span>
+    <span>Keys: ← → step, Space play/pause</span>
+  </div>
+</header>
+
+<div class="controls" role="toolbar" aria-label="Animation controls">
+  <div class="controls-inner">
+    <button id="restart" title="Back to the first step">⏮ Restart</button>
+    <button id="prev" title="Previous step (←)">◀ Back</button>
+    <button id="play" class="primary" title="Play or pause (Space)">▶ Play</button>
+    <button id="next" title="Next step (→)">Next ▶</button>
+    <label>Speed
+      <select id="speed" aria-label="Playback speed">
+        <option value="7000">Slow</option>
+        <option value="4500" selected>Normal</option>
+        <option value="2500">Fast</option>
+      </select>
+    </label>
+    <span class="counter" id="counter" aria-live="polite"></span>
+  </div>
+  <div class="progress"><i id="bar"></i></div>
+</div>
+
+<main>
+  <section class="blocks" id="blocks" aria-label="Boot and login stages"></section>
+  <section class="detail" id="detail" aria-live="polite"></section>
+
+  <div id="extraCards"></div>
+</main>
+
+<footer>
+  Paths are the Mint 22 / Ubuntu 24.04 defaults. Files under <code>/etc</code> need <code>sudo</code>. Changes to boot files need the command shown in "Apply with". Changes to login files apply at the next login.
+  <br>Version 01 · Ángel Rodríguez Gil · Created with Claude Fable 5.2 (AI assistance) · License: CC BY 4.0 · Educational material, provided as is, with no warranty. Not affiliated with Linux Mint.
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var BLOCKS = [
+    { title: "1 · System start-up", sub: "Power button → login screen", color: "var(--c1)" },
+    { title: "2 · Login process",   sub: "Login screen → session scripts", color: "var(--c2)" },
+    { title: "3 · User access",     sub: "Desktop → shell → logout", color: "var(--c3)" }
+  ];
+
+  // f: files involved. e: files you can customize. risk:true marks risky ones.
+  var STEPS = [
+    { b: 0, name: "UEFI firmware", short: "Hardware check, finds the bootloader",
+      what: ["The firmware runs a power-on self-test and initializes the hardware. It then reads the boot entries stored in NVRAM (the BootOrder list) and loads the EFI program from the EFI System Partition, a small FAT32 partition mounted later at /boot/efi.",
+             "Mint reuses the Ubuntu folder name, so the entry is usually called \"ubuntu\"."],
+      f: [ { p: "/boot/efi/EFI/ubuntu/shimx64.efi", why: "First program loaded (signed shim)" },
+           { p: "/boot/efi/", why: "EFI System Partition (FAT32)" } ],
+      e: [ { p: "Firmware setup screen (Del, F2 or Esc at power-on)", why: "Boot order, Secure Boot, boot menu key" },
+           { p: "NVRAM boot entries", why: "View or change with efibootmgr" } ],
+      cmd: ["sudo efibootmgr", "ls /sys/firmware/efi"] },
+
+    { b: 0, name: "Shim and GRUB", short: "Bootloader chooses and loads the kernel",
+      what: ["Shim is signed by a key that Secure Boot trusts. It loads GRUB, which reads its configuration, shows the boot menu (hidden by default when only one system is installed) and loads the kernel and the initramfs from /boot.",
+             "GRUB passes the kernel command line, for example \"quiet splash\" and the root device."],
+      f: [ { p: "/boot/grub/grub.cfg", why: "Generated menu. Never edit by hand" },
+           { p: "/boot/vmlinuz-*", why: "The kernel images" },
+           { p: "/boot/initrd.img-*", why: "The initramfs images" } ],
+      e: [ { p: "/etc/default/grub", why: "Timeout, hidden menu, GRUB_CMDLINE_LINUX_DEFAULT" },
+           { p: "/etc/default/grub.d/*.cfg", why: "Drop-in overrides (Mint adds some)" },
+           { p: "/etc/grub.d/", why: "Scripts that build the menu entries", risk: true } ],
+      cmd: ["sudo update-grub"] },
+
+    { b: 0, name: "Linux kernel", short: "Memory, CPUs, drivers",
+      what: ["The kernel decompresses itself, sets up memory and CPUs, initializes drivers and mounts the initramfs as a temporary root. It receives the command line that GRUB gave it."],
+      f: [ { p: "/proc/cmdline", why: "The parameters the kernel received" },
+           { p: "/boot/config-*", why: "Options the kernel was built with" } ],
+      e: [ { p: "/etc/modprobe.d/*.conf", why: "Module options and blacklists" },
+           { p: "/etc/modules-load.d/*.conf", why: "Modules to load at boot" },
+           { p: "/etc/sysctl.d/*.conf", why: "Kernel runtime parameters" } ],
+      cmd: ["cat /proc/cmdline", "sudo sysctl --system"] },
+
+    { b: 0, name: "initramfs", short: "Temporary root in RAM finds the real one",
+      what: ["A small filesystem in RAM that contains the drivers needed to reach the real root: disk controller, filesystem, and disk encryption if used. It mounts the real root named in the command line (root=UUID=...) and then starts /sbin/init, which is systemd."],
+      f: [ { p: "/boot/initrd.img-*", why: "The image that is unpacked into RAM" } ],
+      e: [ { p: "/etc/initramfs-tools/initramfs.conf", why: "Build options" },
+           { p: "/etc/initramfs-tools/modules", why: "Extra modules to include" },
+           { p: "/etc/initramfs-tools/hooks/", why: "Custom build hooks", risk: true } ],
+      cmd: ["sudo update-initramfs -u"] },
+
+    { b: 0, svc: true, name: "systemd (PID 1)", short: "Mounts, starts services in parallel",
+      what: ["systemd is the first process. It mounts the filesystems listed in /etc/fstab and starts units in parallel, following their dependencies, until it reaches the default target. On Mint this is graphical.target, which starts the display manager (LightDM)."],
+      f: [ { p: "/usr/lib/systemd/system/", why: "Units shipped by packages" },
+           { p: "/usr/lib/systemd/system/default.target", why: "Link to graphical.target (the default target)" } ],
+      e: [ { p: "/etc/fstab", why: "Which filesystems and swap to mount", risk: true },
+           { p: "/etc/systemd/system/default.target", why: "Created only if you run systemctl set-default" },
+           { p: "/etc/systemd/system/*.service", why: "Your own units" },
+           { p: "/etc/systemd/system/<unit>.d/override.conf", why: "Safe overrides of packaged units" } ],
+      cmd: ["systemctl get-default", "sudo systemctl edit <unit>", "systemd-analyze blame"] },
+
+    { b: 1, name: "LightDM greeter", short: "The login screen",
+      what: ["LightDM, the display manager, starts the X server and the greeter (slick-greeter in Mint), which draws the login screen. It lists the sessions available from the .desktop files in /usr/share/xsessions."],
+      f: [ { p: "/etc/lightdm/lightdm.conf.d/70-linuxmint.conf", why: "Mint's LightDM settings: greeter and session wrapper" },
+           { p: "/usr/share/xsessions/*.desktop", why: "Available sessions, for example cinnamon.desktop" } ],
+      e: [ { p: "/etc/lightdm/lightdm.conf.d/*.conf", why: "Autologin, default session, greeter choice" },
+           { p: "Menu → Login Window", why: "Mint's graphical tool for the same settings" } ],
+      cmd: ["systemctl status lightdm"] },
+
+    { b: 1, name: "PAM authentication", short: "Checks login and password",
+      what: ["The greeter hands the user name and password to PAM (Pluggable Authentication Modules). pam_unix compares the password with the hash in /etc/shadow. Other modules apply account rules and resource limits, and unlock the keyring with the same password."],
+      f: [ { p: "/etc/passwd", why: "User names, UID, home, shell" },
+           { p: "/etc/shadow", why: "Password hashes (root only)" },
+           { p: "/etc/pam.d/lightdm", why: "PAM rules for the login screen" },
+           { p: "/etc/pam.d/common-auth", why: "Shared authentication rules" } ],
+      e: [ { p: "/etc/security/limits.conf and limits.d/", why: "Per-user resource limits" },
+           { p: "/etc/pam.d/*", why: "Authentication rules. A mistake can lock you out", risk: true } ],
+      cmd: ["passwd", "sudo visudo (for sudo rules, never edit sudoers directly)"] },
+
+    { b: 1, svc: true, name: "systemd-logind session", short: "Registers your session",
+      what: ["pam_systemd registers the new session with systemd-logind. It creates the runtime directory /run/user/UID, assigns the seat and the virtual terminal, and starts your per-user systemd manager (user@UID.service)."],
+      f: [ { p: "/run/user/<UID>/", why: "Per-user runtime directory (RAM)" },
+           { p: "user@<UID>.service", why: "Your systemd --user manager" } ],
+      e: [ { p: "/etc/systemd/logind.conf", why: "Lid switch, idle action, session limits" },
+           { p: "~/.config/systemd/user/*.service", why: "Your own user services" } ],
+      cmd: ["loginctl list-sessions", "systemctl --user status"] },
+
+    { b: 1, name: "Session scripts", short: "Profiles and Xsession.d",
+      what: ["The wrapper /usr/sbin/lightdm-session sources, in this order, /etc/profile, ~/.profile, /etc/xprofile and ~/.xprofile. Then /etc/X11/Xsession runs every script in /etc/X11/Xsession.d/ in alphabetical order. Among them: ~/.xsessionrc is sourced, the GPG and SSH agents start, the environment is passed to D-Bus, and finally the session command runs.",
+             "For Cinnamon the session command is cinnamon-session-cinnamon."],
+      f: [ { p: "/usr/sbin/lightdm-session", why: "The wrapper that starts the sequence" },
+           { p: "/etc/profile and /etc/profile.d/*.sh", why: "System-wide environment" },
+           { p: "/etc/X11/Xsession.d/", why: "Numbered scripts, run in order" },
+           { p: "/usr/share/xsessions/cinnamon.desktop", why: "Names the session command" } ],
+      e: [ { p: "~/.profile", why: "PATH and environment variables (shipped with Mint)" },
+           { p: "~/.xprofile", why: "Graphical-session variables and commands" },
+           { p: "~/.xsessionrc", why: "Locale and other GUI variables" },
+           { p: "/etc/profile.d/*.sh", why: "System-wide additions (root)" } ],
+      cmd: ["Log out and in again to apply changes", "cp ~/.profile ~/.profile.bak  (before editing)"] },
+
+    { b: 2, name: "Cinnamon session", short: "Desktop and autostart programs",
+      what: ["cinnamon-session starts the window manager (Muffin), the Cinnamon shell with the panel and applets, the desktop icons and the cinnamon-settings-daemon helpers. It then launches every program listed as a .desktop file in the autostart folders: network applet, update manager, Bluetooth, keyring and more. Your saved settings come from dconf."],
+      f: [ { p: "/etc/xdg/autostart/*.desktop", why: "System-wide autostart programs" },
+           { p: "~/.config/dconf/user", why: "Your saved desktop settings (binary)" } ],
+      e: [ { p: "~/.config/autostart/*.desktop", why: "Your own autostart programs" },
+           { p: "~/.local/share/cinnamon/", why: "Applets, desklets and extensions you installed" },
+           { p: "~/.config/cinnamon/spices/", why: "Settings of those applets and desklets" },
+           { p: "~/.themes and ~/.icons", why: "Your themes and icons" },
+           { p: "Menu → Startup Applications", why: "Graphical way to edit autostart" } ],
+      cmd: ["dconf-editor  (advanced settings; optional, not installed by default: sudo apt install dconf-editor)", "cinnamon-settings  (System Settings)"] },
+
+    { b: 2, name: "Terminal and shell", short: "Where .bashrc and .profile apply",
+      what: ["A terminal window inside Cinnamon starts a non-login interactive shell. It reads only ~/.bashrc (and /etc/bash.bashrc) and inherits the environment that the session set up earlier.",
+             "A text console (Ctrl+Alt+F3) or an SSH connection starts a login shell: getty or sshd, then login, PAM, then Bash reads /etc/profile and the first of ~/.bash_profile, ~/.bash_login or ~/.profile. Mint ships only ~/.profile, which sources ~/.bashrc."],
+      f: [ { p: "/etc/bash.bashrc", why: "System-wide interactive settings" },
+           { p: "/etc/profile", why: "System-wide login settings" } ],
+      e: [ { p: "~/.bashrc", why: "Aliases, prompt, functions, history" },
+           { p: "~/.bash_aliases", why: "Aliases kept in a separate file (read by the default .bashrc)" },
+           { p: "~/.bash_profile", why: "Optional. If it exists, .profile is ignored by login shells", risk: true },
+           { p: "~/.inputrc", why: "Readline key bindings" } ],
+      cmd: ["source ~/.bashrc", "bash -l -c 'echo $PATH'"] },
+
+    { b: 2, name: "Run things automatically", short: "Autostart, cron and timers", viz: "table",
+      table: [ [ "When you log in to the desktop", "Startup Applications, or a .desktop file in ~/.config/autostart/" ],
+               [ "In every terminal you open", "~/.bashrc" ],
+               [ "Once per login (variables, PATH)", "~/.profile" ],
+               [ "On a schedule, as your user", "crontab -e, or a systemd user timer in ~/.config/systemd/user/" ],
+               [ "On a schedule, for the whole system", "/etc/cron.d/, /etc/cron.daily/ and the other /etc/cron.* folders" ],
+               [ "Once at every boot", "an @reboot line in your crontab, or a systemd unit" ],
+               [ "At boot, as a background service", "a systemd unit in /etc/systemd/system/ (see card 4)" ],
+               [ "When a login shell exits", "~/.bash_logout" ] ],
+      what: ["Linux can run your commands at different moments: when you log in, in every terminal, on a schedule, or at boot. Pick the place that matches when you want it to run. The table below is the map.",
+             "cron runs a command on a schedule. A crontab line has five time fields and then the command: minute, hour, day of month, month, day of week. cron starts with a minimal environment: a short PATH and no desktop session. So use absolute paths, redirect the output to a log file (otherwise it goes to local mail that nobody reads), and don't expect notify-send or other graphical commands to work without extra setup.",
+             "A systemd user timer does the same job with better logs (journalctl) and, with Persistent=true, it catches up if the machine was off at the scheduled time. anacron, which is usually installed on Mint, does the same for the daily, weekly and monthly folders in /etc/cron.*.",
+             "Common mistakes: forgetting chmod +x, using relative paths, a job that works in your terminal but fails in cron because of PATH, and not redirecting output so you never see the error. Always run the script by hand first, then add it to a schedule."],
+      f: [ { p: "/etc/crontab", why: "System-wide schedule. It has an extra column for the user" },
+           { p: "/etc/cron.d/, /etc/cron.hourly/, /etc/cron.daily/, /etc/cron.weekly/, /etc/cron.monthly/", why: "System jobs and scripts run on a schedule" },
+           { p: "/var/spool/cron/crontabs/<user>", why: "Where crontab -e stores your crontab. Don't edit it directly" },
+           { p: "/etc/xdg/autostart/*.desktop", why: "System-wide desktop autostart programs" } ],
+      e: [ { p: "crontab -e", why: "Your own schedule (edit with the crontab command, not the file)" },
+           { p: "~/.config/autostart/*.desktop", why: "Programs that start when you log in to the desktop" },
+           { p: "~/.config/systemd/user/*.service and *.timer", why: "Your own jobs and timers, with logs in the journal" },
+           { p: "~/.bashrc, ~/.profile, ~/.bash_logout", why: "Commands for every terminal, every login, and every logout" },
+           { p: "/etc/crontab edited by hand", why: "System-wide, and a mistake affects every job", risk: true } ],
+      snipNote: "Examples of files you would create (shown for learning, not created by this page). Replace \"me\" with your user name. The cron line and the timer were tested and fired. A timer fires within one minute of its set time by default.",
+      snip: [ { t: "~/bin/hello-cron.sh  (a harmless test script)", c: [ "#!/bin/bash", "echo \"$(date '+%F %T') hello from the scheduler\" >> /home/me/cron-test.log" ] },
+              { t: "crontab -e  (opens your crontab: add these lines)", c: [ "PATH=/usr/local/bin:/usr/bin:/bin", "# minute hour day-of-month month day-of-week  command", "*/5 * * * *  /home/me/bin/hello-cron.sh >> /home/me/cron.log 2>&1", "30 2 * * *   /home/me/bin/hello-cron.sh >> /home/me/cron.log 2>&1", "@reboot      /home/me/bin/hello-cron.sh >> /home/me/cron.log 2>&1" ] },
+              { t: "~/.config/autostart/my-login.desktop  (runs at desktop login)", c: [ "[Desktop Entry]", "Type=Application", "Name=My login script", "Exec=/home/me/bin/hello-cron.sh", "Terminal=false", "X-GNOME-Autostart-enabled=true" ] },
+              { t: "~/.config/systemd/user/hello.service", c: [ "[Unit]", "Description=Hello job", "", "[Service]", "Type=oneshot", "ExecStart=%h/bin/hello-cron.sh" ] },
+              { t: "~/.config/systemd/user/hello.timer", c: [ "[Unit]", "Description=Run the hello job every day at 02:30", "", "[Timer]", "OnCalendar=*-*-* 02:30:00", "Persistent=true", "", "[Install]", "WantedBy=timers.target" ] } ],
+      cmd: [ "mkdir -p ~/bin && nano ~/bin/hello-cron.sh", "chmod +x ~/bin/hello-cron.sh", "~/bin/hello-cron.sh  (test by hand first)", "crontab -n <file>  (dry run: checks the syntax, installs nothing)", "crontab -e", "crontab -l",
+             "mkdir -p ~/.config/autostart && nano ~/.config/autostart/my-login.desktop",
+             "mkdir -p ~/.config/systemd/user && nano ~/.config/systemd/user/hello.timer",
+             "systemctl --user daemon-reload", "systemctl --user enable --now hello.timer",
+             "systemctl --user list-timers", "journalctl -u cron --since today", "ls /etc/cron.*" ] },
+
+    { b: 2, name: "Logout", short: "Session ends, back to the login screen",
+      what: ["Logging out ends the Cinnamon session. systemd-logind closes your session, a login shell runs ~/.bash_logout, and your user manager stops when no sessions remain (unless lingering is enabled). LightDM shows the greeter again, so the cycle starts at the login block."],
+      f: [ { p: "~/.bash_logout", why: "Run by login shells when they exit" } ],
+      e: [ { p: "~/.bash_logout", why: "Cleanup commands (for example clear the screen)" },
+           { p: "loginctl enable-linger <user>", why: "Optional: keep user services running after logout" } ],
+      cmd: ["loginctl show-user $USER"] }
+  ];
+
+  // Fourth card: how systemd finds and starts services and daemons.
+  var SVC_BLOCK = { title: "4 · Services and daemons", color: "var(--c4)" };
+  var SVC = [
+    { name: "Unit files", short: "1 · Unit files",
+      what: ["A unit is a small text file that describes one thing systemd manages: a service, a mount, a socket, a timer or a target. systemd searches several directories. If the same name exists in two of them, the higher one wins, which is how overrides work."],
+      f: [ { p: "/usr/lib/systemd/system/", why: "Units shipped by packages. Don't edit them" },
+           { p: "/usr/local/lib/systemd/system/", why: "Units installed locally" },
+           { p: "/run/systemd/system/", why: "Runtime and generated units (gone after a reboot)" } ],
+      e: [ { p: "/etc/systemd/system/", why: "Your own units and the enable links. Highest priority" },
+           { p: "/etc/systemd/system/<unit>.d/override.conf", why: "Safe way to change a packaged unit" } ],
+      cmd: ["systemctl cat <unit>", "sudo systemctl edit <unit>", "systemctl show -p UnitPath --value"] },
+
+    { name: "Enabling a service", short: "2 · Enabling", viz: "link",
+      what: ["A service starts at boot because of a symlink in a .wants directory. systemctl enable creates it and systemctl disable removes it. The [Install] section of the unit says where the link goes: WantedBy=multi-user.target means a link in multi-user.target.wants.",
+             "Enabling does not start the service now. Use start, or enable --now to do both."],
+      f: [ { p: "/usr/lib/systemd/system/cron.service", why: "Example unit, with an [Install] section" } ],
+      e: [ { p: "/etc/systemd/system/*.wants/", why: "Where the enable links live. Manage them with systemctl, not by hand" } ],
+      cmd: ["sudo systemctl enable --now <unit>", "systemctl is-enabled <unit>", "systemctl list-unit-files --state=enabled"] },
+
+    { name: "The target chain", short: "3 · Targets", viz: "tree",
+      what: ["Targets are named goals that group units. The default target is graphical.target. It pulls in multi-user.target, which pulls in basic.target, which pulls in sysinit.target. systemd works from the bottom up: early system setup first, then sockets and timers, then your services, and finally the display manager.",
+             "Units inside the same step start in parallel. Only their After= and Before= lines set the order between them."],
+      f: [ { p: "/usr/lib/systemd/system/default.target", why: "Link to graphical.target" },
+           { p: "/usr/lib/systemd/system/*.target", why: "The target definitions" } ],
+      e: [ { p: "/etc/systemd/system/default.target", why: "Created only if you run systemctl set-default" } ],
+      cmd: ["systemctl get-default", "systemctl list-dependencies graphical.target", "systemd-analyze critical-chain"] },
+
+    { name: "Other ways services start", short: "4 · Other triggers",
+      what: ["Not every service is a boot-time link. Generators are small programs that create units on the fly at boot: the fstab generator turns /etc/fstab into mount units. Socket units start a service when something connects, timer units start one on a schedule, and path units start one when a file changes.",
+             "cron is a separate scheduler. It is itself started as a normal service."],
+      f: [ { p: "/usr/lib/systemd/system-generators/", why: "Programs that generate units at boot" },
+           { p: "/run/systemd/generator/", why: "The units they generated (RAM)" } ],
+      e: [ { p: "/etc/fstab", why: "Becomes mount units. A mistake can stop boot", risk: true },
+           { p: "/etc/systemd/system/*.timer and *.socket", why: "Your own timers and sockets" },
+           { p: "/etc/cron.d/, /etc/cron.daily/ and crontab -e", why: "Classic scheduled jobs" } ],
+      cmd: ["systemctl list-timers", "systemctl list-sockets", "crontab -e"] },
+
+    { name: "User services", short: "5 · User services",
+      what: ["After login, systemd-logind starts user@UID.service, your own systemd --user manager. It runs per-user services such as the D-Bus user bus, dconf, the keyring and the audio server (PipeWire). It uses the same unit format with its own search paths.",
+             "Your user services stop at logout, unless lingering is enabled."],
+      f: [ { p: "/usr/lib/systemd/user/", why: "User units shipped by packages" },
+           { p: "/etc/systemd/user/", why: "System-wide user units" } ],
+      e: [ { p: "~/.config/systemd/user/", why: "Your own user units" },
+           { p: "~/.config/systemd/user/<unit>.d/override.conf", why: "Override a packaged user unit" } ],
+      cmd: ["systemctl --user list-units --type=service", "systemctl --user enable --now <unit>", "loginctl enable-linger $USER"] },
+
+    { name: "Not systemd: desktop autostart", short: "6 · Not systemd",
+      what: ["Programs such as the network applet, the update manager and the Bluetooth tray icon are started by cinnamon-session from .desktop files, not by systemd. They exist only during your graphical session and need a desktop.",
+             "Rule of thumb: a background daemon with no window is a systemd unit. A program with a window or tray icon belongs in autostart."],
+      f: [ { p: "/etc/xdg/autostart/*.desktop", why: "System-wide autostart programs" } ],
+      e: [ { p: "~/.config/autostart/*.desktop", why: "Your own autostart programs" },
+           { p: "Menu → Startup Applications", why: "Graphical way to edit them" } ],
+      cmd: ["ls /etc/xdg/autostart"] }
+  ];
+
+  // Fifth card: network and firewall. Look commands only; tools are optional extras.
+  var NET_BLOCK = { title: "5 · Network and firewall", color: "var(--c5)", cmdLabel: "Look with (read-only): " };
+  var NET = [
+    { name: "Know your connection", short: "1 · Connection",
+      what: ["Before securing anything, learn what your machine is connected to. NetworkManager manages Wi-Fi and cable. nmcli shows the active connection, your IP address, the gateway (your router) and the DNS servers. For Wi-Fi, check the security type: WPA2 or WPA3 is acceptable. WEP or an open network is not.",
+             "Saved networks, including their Wi-Fi passwords, are stored in root-only files, so ordinary users and programs can't read them."],
+      f: [ { p: "/etc/NetworkManager/NetworkManager.conf", why: "Main NetworkManager settings" },
+           { p: "/etc/netplan/90-NM-*.yaml", why: "Saved networks with Wi-Fi passwords (root only)" },
+           { p: "/run/NetworkManager/system-connections/", why: "The same networks, generated at runtime" },
+           { p: "/etc/resolv.conf", why: "DNS resolver, usually managed by systemd-resolved" } ],
+      e: [ { p: "Menu → Network", why: "Per-connection settings such as connect automatically" },
+           { p: "/etc/NetworkManager/conf.d/*.conf", why: "Drop-in settings, for example Wi-Fi MAC address randomization" } ],
+      cmd: ["nmcli device status", "nmcli connection show --active", "nmcli -f SSID,SECURITY,SIGNAL device wifi list", "ip -br addr", "ip route", "resolvectl status"],
+      tools: [ { n: "nethogs", why: "Shows which program is using the network right now", i: "sudo apt install nethogs   then   sudo nethogs" } ] },
+
+    { name: "What is listening", short: "2 · Listening ports",
+      what: ["A port is only a risk if a program is listening on it. ss lists listening sockets and the program behind each one. Read the Local Address column: 127.0.0.1 or [::1] means only your own machine can connect. 0.0.0.0, * or [::] means any machine that can reach you.",
+             "On a home desktop the list of network-wide listeners should be short. For each one, ask: do I know why it is there? Discovery (mDNS on port 5353) and printing (631) are common, and you can turn them off if you don't use them."],
+      f: [ { p: "/etc/services", why: "Names for well-known port numbers" },
+           { p: "systemctl status <unit>", why: "Tells you which service owns a listening program" } ],
+      e: [ { p: "/etc/avahi/avahi-daemon.conf", why: "Network discovery service settings" },
+           { p: "/etc/cups/cupsd.conf", why: "Where the print service decides which addresses it listens on" },
+           { p: "Service on/off: see card 4", why: "Disabling a service you don't use closes its port" } ],
+      cmd: ["ss -tulpn", "sudo ss -tulpn  (shows process names for all users)", "ss -tn state established", "sudo lsof -i -P -n"],
+      tools: [ { n: "nmap", why: "Scans ports like an outsider would. Only scan your own machines", i: "sudo apt install nmap   then   nmap <your-LAN-IP>" } ] },
+
+    { name: "Firewall", short: "3 · Firewall", viz: "fw",
+      what: ["A firewall decides which packets may reach your ports. On Mint the front end is ufw (Uncomplicated Firewall), which writes rules for nftables in the kernel. The usual home policy is: deny incoming, allow outgoing. The firewall is stateful: replies to connections you started are allowed, and new connections from outside to a port with no allow rule are dropped.",
+             "A firewall is a second line of defence. It does not replace turning off services you don't need. Always confirm with ufw status: it must say \"Status: active\"."],
+      f: [ { p: "/etc/ufw/ufw.conf", why: "ENABLED=yes or no" },
+           { p: "/etc/default/ufw", why: "Default policies for incoming and outgoing traffic" },
+           { p: "/etc/ufw/user.rules", why: "Generated from the rules you add. Not for hand editing" },
+           { p: "/var/log/ufw.log", why: "Blocked packets, when logging is on" } ],
+      e: [ { p: "/etc/default/ufw", why: "Default policy, IPv6 on or off" },
+           { p: "/etc/ufw/applications.d/", why: "Profiles that give an application a name, such as OpenSSH" },
+           { p: "Menu → Firewall Configuration (gufw)", why: "Graphical front end for ufw, included in Mint" },
+           { p: "/etc/ufw/*.rules edited by hand", why: "A mistake can open or lock ports", risk: true } ],
+      cmd: ["sudo ufw status verbose", "sudo ufw status numbered", "sudo nft list ruleset", "sudo tail /var/log/ufw.log"] },
+
+    { name: "Docker and the firewall", short: "4 · Docker", viz: "fwdocker",
+      what: ["When you publish a port, Docker writes its own firewall rules. Traffic to a published port is forwarded to the container by Docker's rules, and a ufw \"deny\" does not stop it. Behind a home router this matters less. On a laptop in a café, a container published on all addresses can be reached by everyone on that Wi-Fi. Don't trust ufw status alone: test from another machine, for example with nmap.",
+             "Safer habits: publish to localhost only (-p 127.0.0.1:8080:80), publish only the ports you need, and remember that being in the docker group is equal to root on this machine, because a container can mount any folder as root. Don't mount /var/run/docker.sock into containers you don't trust."],
+      f: [ { p: "/var/run/docker.sock", why: "The Docker control socket. Whoever can use it is effectively root" },
+           { p: "docker-compose.yml (in your projects)", why: "The ports: lines say what you publish" },
+           { p: "/etc/docker/daemon.json", why: "Daemon settings, if the file exists" } ],
+      e: [ { p: "ports: in docker-compose.yml, or -p on docker run", why: "Bind to 127.0.0.1 unless the service must be reachable" },
+           { p: "/etc/docker/daemon.json", why: "Option \"ip\" sets the host address for published ports (dockerd --ip)" } ],
+      cmd: ["sudo docker ps --format 'table {{.Names}}\\t{{.Ports}}'", "sudo docker network ls", "ss -tulpn", "groups  (docker commands need sudo unless you are in the docker group)"],
+      links: [ { t: "Docker documentation: Packet filtering and firewalls", u: "https://docs.docker.com/engine/network/packet-filtering-firewalls/" } ] },
+
+    { name: "Public Wi-Fi checklist (laptop)", short: "5 · Public Wi-Fi", viz: "list",
+      list: [ "Firewall active with deny incoming (card 3), and no Docker container published on all addresses",
+              "Sharing and discovery services off or stopped: file sharing, avahi, printing if unused (check with ss)",
+              "Don't auto-connect to open networks. Prefer WPA2 or WPA3, or use your phone's hotspot",
+              "Use a VPN for anything sensitive. It protects your traffic from the people on the same Wi-Fi",
+              "HTTPS only. Treat a certificate warning as a stop sign, not as something to click through",
+              "Lock the screen when you step away. Turn off Bluetooth if you don't use it",
+              "Install pending updates before you travel" ],
+      what: ["On a public network the router is not yours and other people share the same local network. Assume someone there could try to connect to your laptop or read unencrypted traffic. These habits, plus the firewall and listening-port checks from the earlier stages, cover most of the risk.",
+             "A VPN encrypts the traffic between your laptop and the VPN server, so the people on the Wi-Fi can't read it. It does not make you anonymous: you move your trust from the Wi-Fi to the VPN provider, so choose one that is audited. Two providers that publish independent audits are Mullvad and Proton VPN. This is a starting point, not an endorsement. Both offer official Linux apps for Ubuntu, Debian and Fedora. Check current terms and price on their sites. You can also run WireGuard to your own home router or server."],
+      f: [ { p: "/etc/netplan/90-NM-*.yaml", why: "Each saved network has an autoconnect setting" },
+           { p: "/etc/avahi/avahi-daemon.conf", why: "Discovery service you may not need outside home" } ],
+      e: [ { p: "Menu → Network → the network → Connect automatically", why: "Switch off for open and café networks" },
+           { p: "Menu → Network → VPN", why: "NetworkManager supports WireGuard and OpenVPN profiles" },
+           { p: "/etc/NetworkManager/conf.d/*.conf", why: "Wi-Fi MAC address randomization settings" } ],
+      cmd: ["nmcli -f NAME,AUTOCONNECT connection show", "sudo ufw status verbose", "ss -tulpn", "nmcli radio"],
+      links: [ { t: "Proton VPN: fifth annual no-logs audit (TechRadar)", u: "https://www.techradar.com/vpn/vpn-services/proton-vpn-aces-independent-no-logs-audit-for-the-fifth-consecutive-year" },
+               { t: "Mullvad: audit of its WireGuard implementation (Mullvad blog)", u: "https://mullvad.net/nl/blog/2026/3/6/a-security-audit-of-gotatun-is-now-available" } ] }
+  ];
+
+  // Sixth card: hardening, alarms and audit.
+  var HARD_BLOCK = { title: "6 · Hardening, alarms and audit", color: "var(--c6)", cmdLabel: "Look with (read-only): " };
+  var HARD = [
+    { name: "SSH as a client", short: "1 · SSH client",
+      what: ["When you connect out to other machines, your private key is the secret to protect. Use an ed25519 key with a passphrase, keep the private key (~/.ssh/id_ed25519) readable only by you, and give only the public key (.pub) to servers. ssh stores each server's fingerprint in known_hosts. A \"host key changed\" warning means the server was reinstalled or someone is intercepting you: don't ignore it.",
+             "ssh-agent keeps the unlocked key in memory so you type the passphrase once. Be careful with agent forwarding (-A or ForwardAgent yes): root on the remote machine can use your agent while you are connected. Prefer ProxyJump (-J) to hop through a bastion host."],
+      f: [ { p: "~/.ssh/id_ed25519", why: "Private key. Never share or copy it around" },
+           { p: "~/.ssh/id_ed25519.pub", why: "Public key. Safe to share" },
+           { p: "~/.ssh/known_hosts", why: "Fingerprints of servers you have connected to" },
+           { p: "/etc/ssh/ssh_config and ssh_config.d/", why: "System-wide client defaults" } ],
+      e: [ { p: "~/.ssh/config", why: "Host aliases, IdentityFile, ProxyJump, ForwardAgent no" },
+           { p: "Permissions: ~/.ssh is 700, private keys are 600", why: "ssh refuses keys that other users can read" } ],
+      snipNote: "Read-only example of ~/.ssh/config (shown for learning, not created by this page)",
+      snip: [ { t: "~/.ssh/config", c: [ "Host home-server", "    HostName 192.168.1.20", "    User me", "    IdentityFile ~/.ssh/id_ed25519", "    ForwardAgent no", "", "Host remote-box", "    HostName remote.example.org", "    ProxyJump home-server" ] } ],
+      cmd: ["ls -ld ~/.ssh && ls -l ~/.ssh", "ssh-add -l", "ssh-keygen -lf ~/.ssh/id_ed25519.pub", "ssh -G <host>", "ssh -v <host>"] },
+
+    { name: "Updates and sandboxing", short: "2 · Updates",
+      what: ["Most real attacks use known bugs that updates already fix. Update Manager shows pending updates, and the kernel and security updates matter most. Add software only from sources you trust: the Mint and Ubuntu repositories, Flatpak (sandboxed) and vendor repositories you have checked. Every extra PPA is code that can run as root when you install from it.",
+             "AppArmor confines programs to what a profile allows, so a compromised browser or service can't touch everything. It is enabled by default. aa-status shows which profiles are enforced. Flatpak apps run in a sandbox whose permissions you can inspect."],
+      f: [ { p: "/etc/apt/sources.list.d/", why: "Extra repositories you have added" },
+           { p: "/etc/apt/keyrings/ and /etc/apt/trusted.gpg.d/", why: "Keys that decide which repositories are trusted" },
+           { p: "/etc/apparmor.d/", why: "AppArmor profiles" },
+           { p: "/var/log/apt/history.log", why: "What was installed or removed, and when" } ],
+      e: [ { p: "Menu → Update Manager → Preferences", why: "How often to check, which kinds of updates to show" },
+           { p: "Menu → Software Sources", why: "Choose and review repositories" },
+           { p: "/etc/apparmor.d/local/", why: "Local additions to profiles" },
+           { p: "~/.local/share/flatpak/overrides/", why: "Per-app Flatpak permission changes" } ],
+      cmd: ["apt list --upgradable", "sudo aa-status", "ls /etc/apt/sources.list.d/", "flatpak list", "flatpak info --show-permissions <app>", "uname -r"],
+      tools: [ { n: "Flatseal", why: "Graphical editor for Flatpak app permissions", i: "flatpak install flathub com.github.tchx84.Flatseal" } ] },
+
+    { name: "Accounts and sudo", short: "3 · Accounts",
+      what: ["Know who can become root and who has logged in. sudo rights come from the sudo group and from files in /etc/sudoers.d/. Membership of the docker group is also root-equivalent. last shows past logins, lastb shows failed ones (needs sudo), and who shows who is on now.",
+             "A strong login password plus an automatic screen lock protects a laptop that is left unattended."],
+      f: [ { p: "/etc/passwd and /etc/group", why: "Users and group membership" },
+           { p: "/etc/sudoers", why: "Never edit directly: use visudo" },
+           { p: "/var/log/wtmp and /var/log/btmp", why: "Login records read by last and lastb" } ],
+      e: [ { p: "/etc/sudoers.d/*", why: "Extra sudo rules. Edit only with visudo", risk: true },
+           { p: "Menu → Screensaver / Lock Screen", why: "Lock the screen after a short idle time" } ],
+      cmd: ["id", "getent group sudo docker", "last -n 10", "sudo lastb -n 10", "sudo -l", "chage -l $USER"] },
+
+    { name: "Logs and alarms", short: "4 · Logs and alarms",
+      what: ["systemd collects logs in the journal and journalctl reads it. Authentication events (sudo, logins, failed passwords) go there and, if rsyslog is installed, to /var/log/auth.log. A log is only useful if someone looks, so an alarm turns an event into a notification.",
+             "On a desktop the simplest alarm is a systemd user timer that runs a small script every few minutes and calls notify-send to show a desktop notification. For services, a unit can also use OnFailure= to start another unit when it fails. The files below are an example of the idea. It was tested once as a user service and the notification was sent. Nothing on this page creates the files, and your user needs read access to the journal (group adm or systemd-journal)."],
+      f: [ { p: "/var/log/auth.log", why: "Authentication log, if rsyslog is installed" },
+           { p: "/var/log/journal/", why: "Persistent journal, if the directory exists" },
+           { p: "/etc/systemd/journald.conf", why: "Journal size and retention" } ],
+      e: [ { p: "~/.local/bin/", why: "Where your alarm scripts would live" },
+           { p: "~/.config/systemd/user/", why: "Where your alarm timer and service units would live" },
+           { p: "/etc/systemd/journald.conf", why: "Keep logs longer or limit their size" } ],
+      snipNote: "Read-only example: a desktop alarm for failed logins (tested once as a user service; shown for learning, not created by this page)",
+      snip: [ { t: "~/.local/bin/auth-alert.sh", c: [ "#!/bin/bash", "n=$(journalctl --since \"-15 min\" --no-pager -q | grep -ci \"authentication failure\")", "if [ \"$n\" -gt 0 ]; then", "  notify-send -u critical \"Security alert\" \"$n failed authentication attempts in the last 15 minutes\"", "fi" ] },
+              { t: "~/.config/systemd/user/auth-alert.service", c: [ "[Unit]", "Description=Check recent failed logins", "", "[Service]", "Type=oneshot", "ExecStart=%h/.local/bin/auth-alert.sh" ] },
+              { t: "~/.config/systemd/user/auth-alert.timer", c: [ "[Unit]", "Description=Run auth-alert every 15 minutes", "", "[Timer]", "OnBootSec=5min", "OnUnitActiveSec=15min", "", "[Install]", "WantedBy=timers.target" ] } ],
+      cmd: ["journalctl -p err -b", "journalctl _COMM=sudo --since today", "systemctl --user list-timers", "groups", "sudo tail /var/log/auth.log"],
+      tools: [ { n: "fail2ban", why: "Bans addresses after repeated failed logins. Useful only if you run a server such as sshd; as an SSH client you don't need it", i: "sudo apt install fail2ban" } ] },
+
+    { name: "Recovery and weekly checkup", short: "5 · Recovery and checkup", viz: "list",
+      list: [ "Update Manager: install pending updates",
+              "ss -tulpn: any listener you can't explain?",
+              "sudo ufw status verbose: still active, still deny incoming?",
+              "sudo docker ps: any container published on 0.0.0.0?",
+              "last and sudo lastb: any login you don't recognise?",
+              "journalctl -p err -b: new errors since last week?",
+              "Timeshift: is the latest snapshot recent? Is the external backup recent?",
+              "ls -l ~/.ssh: permissions still 700 and 600?" ],
+      what: ["Security also means being able to recover. Timeshift (included in Mint) takes snapshots of the system files so you can roll back a bad update or a mistake. By default it does not include your personal files, so back up your home folder separately to an external disk (Mint also includes a Backup Tool). A snapshot on the same disk does not protect you from disk failure or theft.",
+             "A weekly ten-minute checkup reuses the look commands from the earlier stages. The list below is that checklist."],
+      f: [ { p: "/etc/timeshift/timeshift.json", why: "Timeshift settings" },
+           { p: "/timeshift/", why: "Snapshots, on the disk you chose in Timeshift" } ],
+      e: [ { p: "Menu → Timeshift", why: "Schedule, snapshot location, what to include" },
+           { p: "Menu → Backup Tool", why: "Backup of your personal files" } ],
+      cmd: ["sudo timeshift --list", "df -h", "apt list --upgradable"],
+      tools: [ { n: "lynis", why: "Audits the system and gives hardening suggestions", i: "sudo apt install lynis   then   sudo lynis audit system" } ] }
+  ];
+
+  var CARDS = [
+    { id: "svc", block: SVC_BLOCK, steps: SVC,
+      heading: "4 · Services and daemons (systemd layer)",
+      sub: "A daemon is a background process with no terminal. A service is how systemd starts, watches and stops one. This layer runs across the other blocks: it begins at the systemd step in block 1, and your own user manager starts at login in block 2." },
+    { id: "net", block: NET_BLOCK, steps: NET,
+      heading: "5 · Network and firewall",
+      sub: "Home network first, then a laptop on public Wi-Fi. SSH is used to connect out to other machines, and Docker is installed. Commands here only look: they don't change anything." },
+    { id: "hard", block: HARD_BLOCK, steps: HARD,
+      heading: "6 · Hardening, alarms and audit",
+      sub: "Habits and checks that keep the machine in good shape: SSH keys, updates, accounts, logs with a desktop alarm, and a weekly checkup. A baseline, not a guarantee." }
+  ];
+
+  var blocksEl = document.getElementById("blocks");
+  var detailEl = document.getElementById("detail");
+  var counterEl = document.getElementById("counter");
+  var barEl = document.getElementById("bar");
+  var playBtn = document.getElementById("play");
+  var prevBtn = document.getElementById("prev");
+  var nextBtn = document.getElementById("next");
+  var speedEl = document.getElementById("speed");
+  var extraEl = document.getElementById("extraCards");
+  var svcEl = null; // the services card, set when the extra cards are built
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var current = 0, timer = null, playing = false;
+  var blockEls = [], nodeEls = [];
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+
+  // Build the three block cards once.
+  BLOCKS.forEach(function (b, bi) {
+    var card = el("div", "block");
+    card.style.setProperty("--bc", b.color);
+    card.appendChild(el("h2", "", b.title));
+    card.appendChild(el("p", "sub", b.sub));
+    var ol = el("ol");
+    STEPS.forEach(function (s, si) {
+      if (s.b !== bi) return;
+      var li = el("li");
+      li.style.setProperty("--bc", b.color);
+      var btn = el("button", "node");
+      btn.type = "button";
+      btn.appendChild(el("b", "", s.name));
+      btn.appendChild(el("small", "", s.short));
+      btn.addEventListener("click", function () { pause(); go(si); });
+      li.appendChild(btn);
+      ol.appendChild(li);
+      nodeEls[si] = li;
+    });
+    card.appendChild(ol);
+    blocksEl.appendChild(card);
+    blockEls[bi] = card;
+  });
+
+  // Small animated visuals shown inside a detail panel.
+  // Animated packet diagram: Internet -> network card -> firewall -> port -> program.
+  // With docker=true a third packet takes a route around the ufw rules.
+  function makeFirewallSvg(docker) {
+    var wrap = el("div", "fwwrap");
+    var anim = !reduceMotion;
+    var h = docker ? 262 : 165;
+    var names = [["Internet", ""], ["Network card", "Wi-Fi or cable"], ["Firewall", "ufw / nftables"], ["Open port", "a listening socket"], ["Program", "or container"]];
+    var s = '<svg class="fwsvg" viewBox="0 0 720 ' + h + '" role="img" aria-label="Packets travelling from the internet to a program, with a firewall in between">';
+    names.forEach(function (n, i) {
+      var x = 5 + i * 150;
+      s += '<rect class="bx' + (i === 2 ? ' fw' : '') + '" x="' + x + '" y="50" width="110" height="46" rx="8"/>';
+      s += '<text x="' + (x + 55) + '" y="70">' + n[0] + '</text>';
+      s += '<text class="lg" style="text-anchor:middle" x="' + (x + 55) + '" y="87">' + n[1] + '</text>';
+      if (i < 4) s += '<line class="ln" x1="' + (x + 110) + '" y1="73" x2="' + (x + 150) + '" y2="73"/>';
+    });
+    if (docker) {
+      s += '<rect class="bx dk" x="305" y="150" width="150" height="38" rx="8"/>';
+      s += '<text x="380" y="173">Docker\'s own rules (NAT)</text>';
+      s += '<path class="route" d="M210,96 L210,169 L305,169 M455,169 L660,169 L660,96"/>';
+    }
+    // allowed reply (green) and blocked new connection (red)
+    if (anim) {
+      s += '<circle class="ok" r="7" cy="73"><animate attributeName="cx" values="60;660" dur="6s" repeatCount="indefinite"/></circle>';
+      s += '<circle class="bad" r="7" cy="73"><animate attributeName="cx" values="60;300;300" keyTimes="0;0.55;1" dur="6s" begin="-3s" repeatCount="indefinite"/>' +
+           '<animate attributeName="opacity" values="1;1;0" keyTimes="0;0.75;1" dur="6s" begin="-3s" repeatCount="indefinite"/></circle>';
+      s += '<text class="x" x="330" y="40"><animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;0.5;0.58;0.9;1" dur="6s" begin="-3s" repeatCount="indefinite"/>✕</text>';
+      if (docker) {
+        s += '<circle class="dkc" r="7"><animateMotion dur="6s" begin="-1.5s" repeatCount="indefinite" path="M210,73 L210,169 L660,169 L660,96"/></circle>';
+      }
+    } else {
+      s += '<circle class="ok" r="7" cx="60" cy="73"/><circle class="bad" r="7" cx="300" cy="73"/><text class="x" x="330" y="40">✕</text>';
+    }
+    var ly = docker ? 214 : 125;
+    s += '<circle class="ok" r="5" cx="12" cy="' + (ly - 4) + '"/><text class="lg" x="26" y="' + ly + '">Reply to a connection you started: allowed</text>';
+    s += '<circle class="bad" r="5" cx="12" cy="' + (ly + 18 - 4) + '"/><text class="lg" x="26" y="' + (ly + 18) + '">New connection from outside to a port with no allow rule: dropped</text>';
+    if (docker) {
+      s += '<circle class="dkc" r="5" cx="12" cy="' + (ly + 36 - 4) + '"/><text class="lg" x="26" y="' + (ly + 36) + '">Connection to a published Docker port: goes through Docker\'s rules, not ufw\'s</text>';
+    }
+    s += '</svg>';
+    wrap.innerHTML = s; // static string built above, no user data
+    return wrap;
+  }
+
+  function makeViz(s) {
+    var kind = s.viz;
+    var v = el("div", "viz");
+    if (kind === "fw" || kind === "fwdocker") {
+      v.appendChild(makeFirewallSvg(kind === "fwdocker"));
+    } else if (kind === "table") {
+      var tw = el("div", "wtwrap");
+      var tbl = el("table", "wt");
+      var thead = el("thead"), hr = el("tr");
+      hr.appendChild(el("th", "", "You want it to run..."));
+      hr.appendChild(el("th", "", "Use"));
+      thead.appendChild(hr);
+      tbl.appendChild(thead);
+      var tbody = el("tbody");
+      s.table.forEach(function (r, i) {
+        var tr = el("tr");
+        tr.style.setProperty("--i", String(i));
+        tr.appendChild(el("td", "", r[0]));
+        tr.appendChild(el("td", "", r[1]));
+        tbody.appendChild(tr);
+      });
+      tbl.appendChild(tbody);
+      tw.appendChild(tbl);
+      v.appendChild(tw);
+    } else if (kind === "list") {
+      var ul = el("ul", "checks");
+      s.list.forEach(function (t, i) {
+        var li = el("li", "", t);
+        li.style.setProperty("--i", String(i));
+        ul.appendChild(li);
+      });
+      v.appendChild(ul);
+    } else if (kind === "tree") {
+      var layers = [
+        ["graphical.target", "starts lightdm, the login screen"],
+        ["multi-user.target", "cron, NetworkManager and the other services"],
+        ["basic.target", "sockets, timers and paths"],
+        ["sysinit.target", "udev, mounts from /etc/fstab, swap, tmpfiles"]
+      ];
+      var box = el("div", "layers");
+      layers.forEach(function (l, i) {
+        var d = el("div", "layer");
+        d.style.setProperty("--i", String(layers.length - 1 - i)); // bottom layer lights up first
+        d.appendChild(el("b", "", l[0]));
+        d.appendChild(el("small", "", l[1]));
+        box.appendChild(d);
+      });
+      v.appendChild(box);
+      v.appendChild(el("p", "viz-note", "Listed from top (what it pulls in) to bottom. The lights show the start order: bottom first."));
+    } else if (kind === "link") {
+      var pb = el("div", "pathbox");
+      pb.appendChild(el("code", "", "/etc/systemd/system/multi-user.target.wants/cron.service"));
+      pb.appendChild(el("span", "arrow", "▼ symlink to"));
+      pb.appendChild(el("code", "", "/usr/lib/systemd/system/cron.service"));
+      v.appendChild(pb);
+      v.appendChild(el("p", "viz-note", "Created by \"systemctl enable\" because the unit says WantedBy=multi-user.target."));
+    }
+    return v;
+  }
+
+  // Fills a detail panel (main flow or services card) for one stage.
+  function fillDetail(box, s, b) {
+    box.style.setProperty("--bc", b.color);
+    box.textContent = "";
+    box.appendChild(el("span", "badge", b.title));
+    box.appendChild(el("h3", "", s.name));
+    s.what.forEach(function (t) { box.appendChild(el("p", "", t)); });
+    if (s.viz) box.appendChild(makeViz(s));
+
+    var cols = el("div", "cols");
+    var c1 = el("div", "col");
+    c1.appendChild(el("h4", "", "Files involved"));
+    c1.appendChild(fileList(s.f));
+    var c2 = el("div", "col edit");
+    c2.appendChild(el("h4", "", "You can customize"));
+    c2.appendChild(fileList(s.e, true));
+    cols.appendChild(c1); cols.appendChild(c2);
+    box.appendChild(cols);
+
+    if (s.tools && s.tools.length) {
+      var tb = el("div", "col tools");
+      tb.appendChild(el("h4", "", "Optional third-party tools (installing one is a change)"));
+      var tul = el("ul");
+      s.tools.forEach(function (t) {
+        var li = el("li");
+        li.appendChild(el("code", "", t.n));
+        var why = el("span", "why", t.why);
+        if (t.i) { why.appendChild(document.createElement("br")); why.appendChild(el("code", "", t.i)); }
+        li.appendChild(why);
+        tul.appendChild(li);
+      });
+      tb.appendChild(tul);
+      box.appendChild(tb);
+    }
+
+    if (s.snip && s.snip.length) {
+      var sb = el("div", "snipbox");
+      sb.appendChild(el("p", "snip-t", s.snipNote || "Read-only example (shown for learning, not created by this page)"));
+      s.snip.forEach(function (sn) {
+        sb.appendChild(el("p", "snip-t", sn.t));
+        sb.appendChild(el("pre", "snip", sn.c.join("\n")));
+      });
+      box.appendChild(sb);
+    }
+
+    if (s.cmd && s.cmd.length) {
+      var cmd = el("div", "cmd");
+      cmd.appendChild(document.createTextNode(b.cmdLabel || "Apply or inspect with: "));
+      s.cmd.forEach(function (c) { cmd.appendChild(el("code", "", c)); });
+      box.appendChild(cmd);
+    }
+
+    if (s.links && s.links.length) {
+      var lk = el("p", "links", "Sources: ");
+      s.links.forEach(function (l, i) {
+        var a = el("a", "", l.t);
+        a.href = l.u; a.target = "_blank"; a.rel = "noopener noreferrer";
+        if (i) lk.appendChild(document.createTextNode(" · "));
+        lk.appendChild(a);
+      });
+      box.appendChild(lk);
+    }
+
+    if (s.svc) {
+      var jump = el("button", "jump", "See the services layer ↓");
+      jump.type = "button";
+      jump.addEventListener("click", function () {
+        svcEl.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+      });
+      box.appendChild(jump);
+    }
+
+    box.classList.remove("enter");
+    void box.offsetWidth; // restart the CSS animation
+    box.classList.add("enter");
+  }
+
+  function fileList(items, editable) {
+    var ul = el("ul");
+    if (!items.length) { ul.appendChild(el("li", "none", "None at this stage")); return ul; }
+    items.forEach(function (f) {
+      var li = el("li", f.risk ? "risk" : "");
+      li.appendChild(el("code", "", f.p));
+      var why = el("span", "why", f.why);
+      if (f.risk) why.appendChild(el("span", "warn", "  ⚠ risky: back up first"));
+      li.appendChild(why);
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+
+  function render() {
+    var s = STEPS[current], b = BLOCKS[s.b];
+
+    nodeEls.forEach(function (li, i) {
+      li.classList.toggle("done", i < current);
+      li.classList.toggle("current", i === current);
+    });
+    blockEls.forEach(function (c, i) { c.classList.toggle("active", i === s.b); });
+
+    fillDetail(detailEl, s, b);
+    svcEl.classList.toggle("linked", !!s.svc);
+
+    counterEl.textContent = "Step " + (current + 1) + " of " + STEPS.length + " · " + b.title;
+    barEl.style.width = ((current + 1) / STEPS.length * 100) + "%";
+    prevBtn.disabled = current === 0;
+    nextBtn.disabled = current === STEPS.length - 1;
+  }
+
+  function go(i) {
+    current = Math.max(0, Math.min(STEPS.length - 1, i));
+    render();
+  }
+
+  function tick() {
+    if (current >= STEPS.length - 1) { pause(); return; }
+    go(current + 1);
+  }
+
+  function play() {
+    if (current >= STEPS.length - 1) go(0);
+    playing = true;
+    playBtn.textContent = "⏸ Pause";
+    clearInterval(timer);
+    timer = setInterval(tick, parseInt(speedEl.value, 10));
+  }
+
+  function pause() {
+    playing = false;
+    playBtn.textContent = "▶ Play";
+    clearInterval(timer);
+  }
+
+  playBtn.addEventListener("click", function () { playing ? pause() : play(); });
+  prevBtn.addEventListener("click", function () { pause(); go(current - 1); });
+  nextBtn.addEventListener("click", function () { pause(); go(current + 1); });
+  document.getElementById("restart").addEventListener("click", function () { pause(); go(0); });
+  speedEl.addEventListener("change", function () { if (playing) play(); });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.target && e.target.tagName === "SELECT") return;
+    if (e.target && e.target.closest && e.target.closest(".svc")) return; // extra cards have their own buttons
+    if (e.key === "ArrowRight") { pause(); go(current + 1); }
+    else if (e.key === "ArrowLeft") { pause(); go(current - 1); }
+    else if (e.key === " " && !(e.target && e.target.tagName === "BUTTON")) { e.preventDefault(); playing ? pause() : play(); }
+  });
+
+  // Extra cards (4 to 6): each has chips, back/next and its own state.
+  function buildCard(c) {
+    var sec = el("section", "svc");
+    sec.id = c.id;
+    sec.setAttribute("aria-label", c.heading);
+    sec.style.setProperty("--bc", c.block.color);
+    sec.appendChild(el("h2", "", c.heading));
+    sec.appendChild(el("p", "sub", c.sub));
+    var chips = el("div", "chips");
+    var detail = el("div", "detail");
+    detail.setAttribute("aria-live", "polite");
+    var nav = el("div", "svc-nav");
+    var prev = el("button", "", "◀ Back"), next = el("button", "", "Next ▶");
+    prev.type = "button"; next.type = "button";
+    nav.appendChild(prev); nav.appendChild(next);
+    var cur = 0, chipEls = [];
+
+    function show() {
+      chipEls.forEach(function (ch, i) {
+        ch.classList.toggle("current", i === cur);
+        ch.classList.toggle("done", i < cur);
+        ch.setAttribute("aria-current", i === cur ? "step" : "false");
+      });
+      fillDetail(detail, c.steps[cur], c.block);
+      prev.disabled = cur === 0;
+      next.disabled = cur === c.steps.length - 1;
+    }
+    function goTo(i) { cur = Math.max(0, Math.min(c.steps.length - 1, i)); show(); }
+
+    c.steps.forEach(function (s, i) {
+      var chip = el("button", "chip", s.short);
+      chip.type = "button";
+      chip.addEventListener("click", function () { goTo(i); });
+      chips.appendChild(chip);
+      chipEls[i] = chip;
+    });
+    prev.addEventListener("click", function () { goTo(cur - 1); });
+    next.addEventListener("click", function () { goTo(cur + 1); });
+
+    sec.appendChild(chips); sec.appendChild(detail); sec.appendChild(nav);
+    extraEl.appendChild(sec);
+    show();
+    return sec;
+  }
+
+  CARDS.forEach(function (c, i) {
+    var sec = buildCard(c);
+    if (i === 0) svcEl = sec; // the services card is linked from the systemd steps
+  });
+  render();
+})();
+</script>
+</body>
+</html>

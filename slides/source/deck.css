@@ -1,0 +1,102 @@
+/* Linux under the Hood: shared slide rules. Sizes: 96 / 54 / 32 / 26 / 24. */
+body { font-family: 'Inter', Arial, sans-serif; color: #3C4A41; }
+section { counter-increment: page; }
+
+.s { background: #FAFBF7; padding: 128px 128px 160px; display: flex; flex-direction: column; }
+.alt { background: #EFF4EC; }
+
+.s h1 { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 96px; font-weight: 600; line-height: 1.05; color: #17251C; }
+.s h2 { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 54px; font-weight: 600; line-height: 1.1; color: #17251C; margin-bottom: 16px; }
+.s h3 { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 32px; font-weight: 600; line-height: 1.3; color: #17251C; }
+
+.eyebrow { font-size: 24px; font-weight: 600; color: #2A7A46; letter-spacing: 1px; line-height: 1.25; margin-bottom: 12px; }
+.lead { font-size: 32px; line-height: 1.4; color: #3C4A41; margin-bottom: 24px; }
+.txt { font-size: 26px; line-height: 1.4; color: #3C4A41; margin-top: 8px; }
+.note { font-size: 24px; line-height: 1.35; color: #5B6A60; margin-top: 22px; }
+.big { font-size: 32px; font-weight: 600; color: #17251C; }
+
+/* cards */
+.cards { display: flex; gap: 32px; }
+.card { flex: 1; background: #FDFEFB; border: 2px solid #D5DED3; border-radius: 16px; padding: 20px 26px; }
+.edit { border-color: #2A7A46; }
+.edit h3 { color: #2A7A46; }
+.half { flex: 1; }
+.item { margin-top: 12px; }
+.path { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 26px; line-height: 1.3; color: #17251C; }
+.why { font-size: 26px; line-height: 1.3; color: #5B6A60; }
+.risk .why { color: #8A5300; }
+
+/* command pills */
+.cmds { display: flex; flex-wrap: wrap; gap: 10px 12px; margin-top: 22px; align-items: center; }
+.cl { font-size: 24px; font-weight: 600; color: #17251C; }
+.cmd { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 24px; line-height: 1.3; background: #E3EBDF; color: #17251C; padding: 4px 14px; border-radius: 8px; }
+
+/* lists */
+.bul { font-size: 32px; line-height: 1.4; color: #3C4A41; margin-top: 8px; padding-left: 36px; }
+.sm { font-size: 26px; line-height: 1.45; }
+.chk { line-height: 1.62; }
+.num { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 26px; line-height: 1.75; color: #17251C; margin-top: 8px; padding-left: 44px; }
+
+/* code */
+.codet { font-size: 24px; font-weight: 600; color: #5B6A60; margin-top: 12px; margin-bottom: 6px; }
+.code { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 24px; line-height: 1.42; background: #E3EBDF; color: #17251C; border-radius: 12px; padding: 16px 22px; }
+.one { margin-top: 10px; }
+
+/* tables */
+.t { width: 100%; font-size: 26px; color: #3C4A41; }
+.th { background: #D6E4D2; }
+.band { background: #F1F6EE; }
+
+/* footer band */
+.foot { position: absolute; left: 128px; bottom: 64px; width: 1664px; display: flex; justify-content: space-between; }
+.ft { font-size: 24px; color: #5B6A60; }
+.pg { font-size: 24px; color: #5B6A60; }
+.pg::after { content: counter(page); }
+
+/* cover */
+.cover { padding: 128px; justify-content: space-between; }
+.csub { font-size: 54px; line-height: 1.15; color: #2A7A46; margin-top: 18px; }
+.clevel { font-size: 32px; color: #3C4A41; margin-top: 26px; }
+.ccred { display: flex; justify-content: space-between; align-items: flex-end; }
+.cname { font-size: 32px; font-weight: 600; color: #17251C; }
+.cby { font-size: 24px; color: #5B6A60; margin-top: 6px; }
+.cclic { display: flex; flex-direction: column; align-items: flex-end; }
+.licrow { display: flex; gap: 20px; align-items: center; margin-top: 8px; }
+.lictx { font-size: 32px; font-weight: 600; color: #17251C; }
+
+/* index rows */
+.irow { display: flex; gap: 16px; margin-top: 7px; }
+.inum { font-size: 26px; font-weight: 600; color: #2A7A46; width: 44px; }
+.itx { font-size: 26px; line-height: 1.3; color: #3C4A41; }
+
+/* overview columns */
+.ocols { display: flex; gap: 22px; align-items: center; }
+.ocol { flex: 1; background: #FDFEFB; border: 2px solid #D5DED3; border-radius: 16px; padding: 22px 24px; }
+.osub { font-size: 26px; color: #5B6A60; margin-bottom: 14px; }
+.ostep { font-size: 26px; color: #17251C; background: #E3EBDF; border-radius: 8px; padding: 12px 18px; margin-top: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 26px; }
+.chip { font-size: 26px; color: #17251C; background: #FDFEFB; border: 2px solid #2A7A46; border-radius: 10px; padding: 6px 16px; }
+
+/* diagrams */
+.flow { display: flex; gap: 14px; align-items: center; }
+.box { flex: 1; background: #FDFEFB; border: 2px solid #D5DED3; border-radius: 12px; padding: 14px 12px; text-align: center; }
+.hi { border: 4px solid #2A7A46; }
+.warn { border: 4px solid #8A5300; }
+.bt { font-size: 26px; font-weight: 600; color: #17251C; line-height: 1.25; }
+.bs { font-size: 26px; color: #5B6A60; line-height: 1.25; }
+.arr { background: #5B6A60; width: 44px; height: 22px; flex: none; }
+.arrd { background: #5B6A60; width: 22px; height: 40px; flex: none; }
+.legend { display: flex; flex-direction: column; gap: 12px; margin-top: 26px; }
+.leg { display: flex; gap: 18px; align-items: center; }
+.tag { font-size: 24px; font-weight: 600; width: 170px; text-align: center; border-radius: 8px; padding: 4px 0; flex: none; }
+.ok { background: #D5EBDA; color: #1D5A33; }
+.no { background: #F3DDD2; color: #8A2B0C; }
+.legt { font-size: 26px; line-height: 1.3; color: #3C4A41; }
+.lane { font-size: 24px; font-weight: 600; color: #17251C; margin-top: 14px; margin-bottom: 8px; }
+.warnc { color: #8A5300; }
+.fields { display: flex; gap: 10px; margin-top: 6px; }
+.field { flex: 1; font-size: 24px; font-weight: 600; text-align: center; background: #2A7A46; color: #FDFEFB; border-radius: 8px; padding: 8px 4px; }
+.linkd { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.linkmid { display: flex; gap: 14px; align-items: center; padding-left: 40px; }
+.lay { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.layer { background: #FDFEFB; border: 2px solid #2A7A46; border-radius: 12px; padding: 12px 20px; }

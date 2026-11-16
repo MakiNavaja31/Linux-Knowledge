@@ -1,0 +1,243 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Linux under the Hood: the essentials (Short version)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap">
+<style>* { margin: 0 } body { font: 32px/1.2 sans-serif; background:#888 } body > section { width: 1920px !important; height: 1080px !important; overflow: hidden !important; box-sizing: border-box !important; position: relative; isolation: isolate; margin-bottom: 20px } aside { display: none !important } h1 { font-size: 96px; font-weight: 600 } h2 { font-size: 64px; font-weight: 600 } h3 { font-size: 44px; font-weight: 600 } p, li, h1, h2, h3, td, th { overflow-wrap: break-word } table { width: 100%; border-collapse: separate; border-spacing: 0; border: solid #0003; border-width: 2px 0 0 2px } th, td { padding: .35em .6em; text-align: left; border: solid #0003; border-width: 0 2px 2px 0 } x-shape { display: block } x-shape[kind="arrow-right"] { clip-path: polygon(0 30%, 60% 30%, 60% 0, 100% 50%, 60% 100%, 60% 70%, 0 70%) } x-shape[kind="arrow-down"] { clip-path: polygon(30% 0, 70% 0, 70% 60%, 100% 60%, 50% 100%, 0 60%, 30% 60%) } @media print { @page { size: 1920px 1080px; margin: 0 } body { background: none; zoom: 1 !important } body > section { margin: 0 !important; break-after: page } }</style>
+<style>/* Linux under the Hood: shared slide rules. Sizes: 96 / 54 / 32 / 26 / 24. */
+body { font-family: 'Inter', Arial, sans-serif; color: #3C4A41; }
+section { counter-increment: page; }
+
+.s { background: #FAFBF7; padding: 128px 128px 160px; display: flex; flex-direction: column; }
+.alt { background: #EFF4EC; }
+
+.s h1 { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 96px; font-weight: 600; line-height: 1.05; color: #17251C; }
+.s h2 { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 54px; font-weight: 600; line-height: 1.1; color: #17251C; margin-bottom: 16px; }
+.s h3 { font-family: 'Space Grotesk', Arial, sans-serif; font-size: 32px; font-weight: 600; line-height: 1.3; color: #17251C; }
+
+.eyebrow { font-size: 24px; font-weight: 600; color: #2A7A46; letter-spacing: 1px; line-height: 1.25; margin-bottom: 12px; }
+.lead { font-size: 32px; line-height: 1.4; color: #3C4A41; margin-bottom: 24px; }
+.txt { font-size: 26px; line-height: 1.4; color: #3C4A41; margin-top: 8px; }
+.note { font-size: 24px; line-height: 1.35; color: #5B6A60; margin-top: 22px; }
+.big { font-size: 32px; font-weight: 600; color: #17251C; }
+
+/* cards */
+.cards { display: flex; gap: 32px; }
+.card { flex: 1; background: #FDFEFB; border: 2px solid #D5DED3; border-radius: 16px; padding: 20px 26px; }
+.edit { border-color: #2A7A46; }
+.edit h3 { color: #2A7A46; }
+.half { flex: 1; }
+.item { margin-top: 12px; }
+.path { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 26px; line-height: 1.3; color: #17251C; }
+.why { font-size: 26px; line-height: 1.3; color: #5B6A60; }
+.risk .why { color: #8A5300; }
+
+/* command pills */
+.cmds { display: flex; flex-wrap: wrap; gap: 10px 12px; margin-top: 22px; align-items: center; }
+.cl { font-size: 24px; font-weight: 600; color: #17251C; }
+.cmd { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 24px; line-height: 1.3; background: #E3EBDF; color: #17251C; padding: 4px 14px; border-radius: 8px; }
+
+/* lists */
+.bul { font-size: 32px; line-height: 1.4; color: #3C4A41; margin-top: 8px; padding-left: 36px; }
+.sm { font-size: 26px; line-height: 1.45; }
+.chk { line-height: 1.62; }
+.num { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 26px; line-height: 1.75; color: #17251C; margin-top: 8px; padding-left: 44px; }
+
+/* code */
+.codet { font-size: 24px; font-weight: 600; color: #5B6A60; margin-top: 12px; margin-bottom: 6px; }
+.code { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 24px; line-height: 1.42; background: #E3EBDF; color: #17251C; border-radius: 12px; padding: 16px 22px; }
+.one { margin-top: 10px; }
+
+/* tables */
+.t { width: 100%; font-size: 26px; color: #3C4A41; }
+.th { background: #D6E4D2; }
+.band { background: #F1F6EE; }
+
+/* footer band */
+.foot { position: absolute; left: 128px; bottom: 64px; width: 1664px; display: flex; justify-content: space-between; }
+.ft { font-size: 24px; color: #5B6A60; }
+.pg { font-size: 24px; color: #5B6A60; }
+.pg::after { content: counter(page); }
+
+/* cover */
+.cover { padding: 128px; justify-content: space-between; }
+.csub { font-size: 54px; line-height: 1.15; color: #2A7A46; margin-top: 18px; }
+.clevel { font-size: 32px; color: #3C4A41; margin-top: 26px; }
+.ccred { display: flex; justify-content: space-between; align-items: flex-end; }
+.cname { font-size: 32px; font-weight: 600; color: #17251C; }
+.cby { font-size: 24px; color: #5B6A60; margin-top: 6px; }
+.cclic { display: flex; flex-direction: column; align-items: flex-end; }
+.licrow { display: flex; gap: 20px; align-items: center; margin-top: 8px; }
+.lictx { font-size: 32px; font-weight: 600; color: #17251C; }
+
+/* index rows */
+.irow { display: flex; gap: 16px; margin-top: 7px; }
+.inum { font-size: 26px; font-weight: 600; color: #2A7A46; width: 44px; }
+.itx { font-size: 26px; line-height: 1.3; color: #3C4A41; }
+
+/* overview columns */
+.ocols { display: flex; gap: 22px; align-items: center; }
+.ocol { flex: 1; background: #FDFEFB; border: 2px solid #D5DED3; border-radius: 16px; padding: 22px 24px; }
+.osub { font-size: 26px; color: #5B6A60; margin-bottom: 14px; }
+.ostep { font-size: 26px; color: #17251C; background: #E3EBDF; border-radius: 8px; padding: 12px 18px; margin-top: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 26px; }
+.chip { font-size: 26px; color: #17251C; background: #FDFEFB; border: 2px solid #2A7A46; border-radius: 10px; padding: 6px 16px; }
+
+/* diagrams */
+.flow { display: flex; gap: 14px; align-items: center; }
+.box { flex: 1; background: #FDFEFB; border: 2px solid #D5DED3; border-radius: 12px; padding: 14px 12px; text-align: center; }
+.hi { border: 4px solid #2A7A46; }
+.warn { border: 4px solid #8A5300; }
+.bt { font-size: 26px; font-weight: 600; color: #17251C; line-height: 1.25; }
+.bs { font-size: 26px; color: #5B6A60; line-height: 1.25; }
+.arr { background: #5B6A60; width: 44px; height: 22px; flex: none; }
+.arrd { background: #5B6A60; width: 22px; height: 40px; flex: none; }
+.legend { display: flex; flex-direction: column; gap: 12px; margin-top: 26px; }
+.leg { display: flex; gap: 18px; align-items: center; }
+.tag { font-size: 24px; font-weight: 600; width: 170px; text-align: center; border-radius: 8px; padding: 4px 0; flex: none; }
+.ok { background: #D5EBDA; color: #1D5A33; }
+.no { background: #F3DDD2; color: #8A2B0C; }
+.legt { font-size: 26px; line-height: 1.3; color: #3C4A41; }
+.lane { font-size: 24px; font-weight: 600; color: #17251C; margin-top: 14px; margin-bottom: 8px; }
+.warnc { color: #8A5300; }
+.fields { display: flex; gap: 10px; margin-top: 6px; }
+.field { flex: 1; font-size: 24px; font-weight: 600; text-align: center; background: #2A7A46; color: #FDFEFB; border-radius: 8px; padding: 8px 4px; }
+.linkd { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.linkmid { display: flex; gap: 14px; align-items: center; padding-left: 40px; }
+.lay { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.layer { background: #FDFEFB; border: 2px solid #2A7A46; border-radius: 12px; padding: 12px 20px; }
+</style></head><body>
+<section id="cover" class="s alt cover">
+<p class="eyebrow">Short version · the essentials of Linux Mint 22.x in 15 slides</p>
+<div class="ctitle"><h1>Linux under the Hood</h1>
+<p class="csub">Boot, Login, Services and Security</p>
+<p class="clevel">Intermediate level · Version 01 · November 2026</p></div>
+<div class="ccred"><div class="ccleft"><p class="cname">Ángel Rodríguez Gil</p>
+<p class="cby">Created with Claude Fable 5.2 (AI assistance)</p></div>
+<div class="cclic"><svg aria-label="Creative Commons Attribution (CC BY) license icons" width="150" height="64" viewBox="0 0 150 64"><circle cx="32" cy="32" r="28" fill="none" stroke="#17251C" stroke-width="5"/><path d="M29 25 a8.5 8.5 0 1 0 0 14" fill="none" stroke="#17251C" stroke-width="5"/><path d="M46 25 a8.5 8.5 0 1 0 0 14" fill="none" stroke="#17251C" stroke-width="5"/><circle cx="110" cy="32" r="28" fill="none" stroke="#17251C" stroke-width="5"/><circle cx="110" cy="19" r="5.5" fill="#17251C"/><path d="M101 28 h18 v13 h-4.5 v13 h-9 v-13 h-4.5 z" fill="#17251C"/></svg><p class="cby">CC BY 4.0</p></div></div>
+</section>
+
+<section id="purpose" class="s">
+<p class="eyebrow">Purpose</p>
+<h2>Why this guide</h2>
+<div class="cards"><div class="card edit"><h3>What you get</h3>
+<ul class="bul"><li>What Linux Mint does from the power button to a working, secured desktop</li><li>The files involved at each step, and the ones you can customize</li><li>Safe commands to look at your own system first</li></ul>
+</div><div class="card"><h3>Scope</h3>
+<ul class="bul sm"><li>Linux Mint 22.x, Cinnamon edition (based on Ubuntu 24.04)</li><li>LightDM login screen, X11 session, systemd</li><li>For readers who already use the terminal</li><li>This is the short version of a longer deck of about 50 slides</li></ul>
+</div></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="ov-123" class="s alt">
+<p class="eyebrow">The map</p>
+<h2>Six blocks: three steps and three layers</h2>
+<div class="ocols"><div class="ocol "><h3>1 · System start-up</h3><p class="osub">Power button → login screen</p><p class="ostep">UEFI firmware</p><p class="ostep">Shim and GRUB</p><p class="ostep">Linux kernel</p><p class="ostep">initramfs</p><p class="ostep">systemd (PID 1)</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="ocol "><h3>2 · Login process</h3><p class="osub">Login screen → session scripts</p><p class="ostep">LightDM greeter</p><p class="ostep">PAM authentication</p><p class="ostep">systemd-logind session</p><p class="ostep">Session scripts</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="ocol "><h3>3 · User access</h3><p class="osub">Desktop → shell → logout</p><p class="ostep">Cinnamon session</p><p class="ostep">Terminal and shell</p><p class="ostep">Run things automatically</p><p class="ostep">Logout</p></div></div>
+<p class="note big">Under them: 4 · Services and daemons, 5 · Network and firewall, 6 · Hardening, alarms and audit.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="boot" class="s">
+<p class="eyebrow">Block 1 · System start-up</p>
+<h2>Who starts whom at boot</h2>
+<table class="t"><tr class="th"><th style="width:20%">Stage</th><th style="width:44%">What it does</th><th style="width:36%">Where you customize it</th></tr><tr><td>UEFI firmware</td><td>Tests hardware, loads the bootloader from the EFI partition</td><td>Firmware setup screen, efibootmgr</td></tr><tr class="band"><td>Shim and GRUB</td><td>Secure Boot handover, loads kernel and initramfs</td><td>/etc/default/grub, then sudo update-grub</td></tr><tr><td>Linux kernel</td><td>Memory, CPUs, drivers</td><td>/etc/modprobe.d/, /etc/sysctl.d/</td></tr><tr class="band"><td>initramfs</td><td>Temporary root in RAM that finds the real root</td><td>/etc/initramfs-tools/</td></tr><tr><td>systemd (PID 1)</td><td>Mounts /etc/fstab, starts services up to graphical.target</td><td>/etc/systemd/system/, /etc/fstab</td></tr></table>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">systemd-analyze</p><p class="cmd">systemd-analyze blame</p><p class="cmd">systemd-analyze critical-chain</p><p class="cmd">cat /proc/cmdline</p></div>
+<p class="note">“blame” lists slow units. “critical-chain” shows what actually delayed the boot. They are not the same thing.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="login" class="s alt">
+<p class="eyebrow">Block 2 · Login process</p>
+<h2>The order of the login files</h2>
+<div class="cards"><div class="card"><h3>After your password is accepted</h3>
+<ol class="num"><li>/etc/profile</li><li>~/.profile</li><li>/etc/xprofile</li><li>~/.xprofile</li><li>/etc/X11/Xsession.d/*  (among them: ~/.xsessionrc, the GPG and SSH agents)</li><li>cinnamon-session-cinnamon</li></ol>
+</div><div class="card edit"><h3>What to remember</h3>
+<ul class="bul sm"><li>LightDM shows the login screen, PAM checks the password, systemd-logind opens the session</li><li>Changes to these files apply at the next login</li><li>A syntax error in ~/.profile can break the login. Keep Ctrl+Alt+F3 as a way back</li></ul>
+</div></div>
+<p class="note">Order read from /usr/sbin/lightdm-session on Mint 22.3.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="shell" class="s">
+<p class="eyebrow">Block 3 · User access</p>
+<h2>Why your change “did nothing”</h2>
+<div class="cards"><div class="card"><h3>Terminal window in Cinnamon</h3>
+<ul class="bul sm"><li>A non-login, interactive shell</li><li>Reads ~/.bashrc only</li><li>Inherits the session’s environment</li></ul>
+</div><div class="card"><h3>Text console or SSH</h3>
+<ul class="bul sm"><li>A login shell</li><li>Reads /etc/profile, then ~/.profile</li><li>Mint’s ~/.profile sources ~/.bashrc</li></ul>
+</div></div>
+<p class="note big">Variables and PATH go in ~/.profile. Aliases, prompt and functions go in ~/.bashrc.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="auto" class="s">
+<p class="eyebrow">Block 3 · User access</p>
+<h2>Run things automatically: pick the place</h2>
+<p class="lead">Linux can run your commands at different moments. Choose the place that matches when you want it to run.</p>
+<table class="t"><tr class="th"><th style="width:38%">You want it to run...</th><th style="width:62%">Use</th></tr><tr><td>When you log in to the desktop</td><td>Startup Applications, or a .desktop file in ~/.config/autostart/</td></tr><tr class="band"><td>In every terminal you open</td><td>~/.bashrc</td></tr><tr><td>Once per login (variables, PATH)</td><td>~/.profile</td></tr><tr class="band"><td>On a schedule, as your user</td><td>crontab -e, or a systemd user timer in ~/.config/systemd/user/</td></tr><tr><td>On a schedule, for the whole system</td><td>/etc/cron.d/, /etc/cron.daily/ and the other /etc/cron.* folders</td></tr><tr class="band"><td>Once at every boot</td><td>an @reboot line in your crontab, or a systemd unit</td></tr><tr><td>At boot, as a background service</td><td>a systemd unit in /etc/systemd/system/</td></tr><tr class="band"><td>When a login shell exits</td><td>~/.bash_logout</td></tr></table>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="services" class="s">
+<p class="eyebrow">Block 4 · Services and daemons</p>
+<h2>How systemd starts services</h2>
+<div class="cards"><div class="lay"><div class="layer"><p class="bt">graphical.target</p><p class="bs">starts LightDM, the login screen</p></div><div class="layer"><p class="bt">multi-user.target</p><p class="bs">cron, NetworkManager and the other services</p></div><div class="layer"><p class="bt">basic.target</p><p class="bs">sockets, timers and paths</p></div><div class="layer"><p class="bt">sysinit.target</p><p class="bs">udev, mounts from /etc/fstab, swap</p></div></div><div class="card"><h3>Services in four facts</h3><ul class="bul sm"><li>Each target pulls in the one below it. Start order is bottom first</li><li>“Enabled” means a symlink in a .wants directory</li><li>Your overrides go in /etc/systemd/system/, never in /usr/lib/</li><li>Tray programs are started by the desktop’s autostart, not by systemd</li></ul></div></div>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">systemctl list-dependencies graphical.target</p><p class="cmd">systemctl list-unit-files --state=enabled</p><p class="cmd">systemctl list-timers</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="listen" class="s alt">
+<p class="eyebrow">Block 5 · Network and firewall</p>
+<h2>What is listening? Read ss -tulpn</h2>
+<p class="lead">A port is only a risk if a program is listening on it. The Local Address column tells you who can connect.</p>
+<table class="t"><tr class="th"><th style="width:34%">Local address</th><th style="width:33%">Who can connect</th><th style="width:33%">Typical example</th></tr><tr><td>127.0.0.1:631 or [::1]:631</td><td>Only programs on this machine</td><td>Printing service (CUPS)</td></tr><tr class="band"><td>0.0.0.0:5353 or [::]:5353</td><td>Any machine that can reach you</td><td>Network discovery (mDNS, avahi)</td></tr><tr><td>0.0.0.0:22</td><td>Any machine that can reach you</td><td>An SSH server, if you run one</td></tr></table>
+<div class="cmds"><p class="cl">Look:</p><p class="cmd">ss -tulpn</p><p class="cmd">nmcli device status</p><p class="cmd">nmcli -f SSID,SECURITY device wifi list</p></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="fw" class="s">
+<p class="eyebrow">Block 5 · Network and firewall</p>
+<h2>Firewall: what reaches your ports</h2>
+<p class="lead">A firewall decides which packets may reach your ports. On Mint the front end is ufw, which writes rules for nftables in the kernel. The usual home policy: deny incoming, allow outgoing.</p>
+<div class="flow"><div class="box"><p class="bt">Internet</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Network card</p><p class="bs">Wi-Fi or cable</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box hi"><p class="bt">Firewall</p><p class="bs">ufw / nftables</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Open port</p><p class="bs">a listening socket</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Program</p><p class="bs">a service</p></div></div>
+<div class="legend"><div class="leg"><p class="tag ok">ALLOWED</p><p class="legt">A reply to a connection you started. The firewall is stateful, so it remembers your outgoing connections.</p></div><div class="leg"><p class="tag no">DROPPED</p><p class="legt">A new connection from outside to a port that has no allow rule.</p></div></div>
+<p class="note">A firewall is a second line of defense. It does not replace turning off services you don’t need.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="docker" class="s alt">
+<p class="eyebrow">Block 5 · Network and firewall</p>
+<h2>Docker can go around ufw</h2>
+<p class="lead">When you publish a port (-p 8080:80), Docker writes its own firewall rules. Traffic to that port is forwarded to the container, and a ufw “deny” does not stop it.</p>
+<p class="lane">Normal traffic</p><div class="flow"><div class="box"><p class="bt">Internet</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Network card</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box hi"><p class="bt">ufw rules</p><p class="bs">incoming filter</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Open port</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Program</p></div></div>
+<p class="lane warnc">Traffic to a published Docker port</p><div class="flow"><div class="box"><p class="bt">Internet</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Network card</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box warn"><p class="bt">Docker’s own rules</p><p class="bs">forwarding (NAT)</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="box"><p class="bt">Container</p></div></div>
+<p class="note">Don’t trust “ufw status” alone for containers. Test from another machine. Source: Docker documentation, “Packet filtering and firewalls”.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="wifi" class="s">
+<p class="eyebrow">Block 5 · Network and firewall</p>
+<h2>Public Wi-Fi checklist (laptop)</h2>
+<p class="lead">On a public network the router is not yours, and strangers share the same local network.</p>
+<ul class="bul chk"><li>Firewall active with deny incoming, and no Docker container published on all addresses</li><li>Sharing and discovery services off if unused: file sharing, avahi, printing (check with ss)</li><li>Don’t auto-connect to open networks. Prefer WPA2 or WPA3, or your phone’s hotspot</li><li>Use a VPN for anything sensitive</li><li>HTTPS only. Treat a certificate warning as a stop sign</li><li>Lock the screen when you step away. Turn Bluetooth off if unused</li><li>Install pending updates before you travel</li></ul>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="weekly" class="s alt">
+<p class="eyebrow">Block 6 · Hardening, alarms and audit</p>
+<h2>The weekly ten-minute checkup</h2>
+<p class="lead">Also in the full deck: SSH keys, updates and AppArmor, a desktop alarm for failed logins, and Timeshift.</p>
+<ul class="bul chk"><li>Update Manager: install pending updates</li><li>ss -tulpn: any listener you can’t explain?</li><li>sudo ufw status verbose: still active, still deny incoming?</li><li>sudo docker ps: any container published on 0.0.0.0?</li><li>last and sudo lastb: any login you don’t recognize?</li><li>journalctl -p err -b: new errors since last week?</li><li>Timeshift: is the latest snapshot recent? And the backup of your home folder?</li><li>ls -l ~/.ssh: permissions still 700 and 600?</li></ul>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="verified" class="s">
+<p class="eyebrow">Honesty</p>
+<h2>What was verified, and what was not</h2>
+<div class="cards"><div class="card edit"><h3>Checked on a Linux Mint 22.3 machine</h3>
+<ul class="bul sm"><li>File and folder paths, and the Mint menu names</li><li>The order in which login files are read</li><li>Defaults: AppArmor on, firewall drops incoming</li><li>Every look command, with and without sudo, ran without error</li><li>Examples run for real in a test: the cron line, the systemd timer and the alarm notification</li></ul>
+</div><div class="card"><h3>Not verified</h3>
+<ul class="bul sm"><li>Commands that change the system were not run: update-grub, update-initramfs, sysctl --system</li><li>The autostart file at a real login, and a real failed login inside the alarm’s 15-minute window</li><li>Third-party tools: package names confirmed, the tools themselves not run</li><li>The key that opens the GRUB menu, and a real WireGuard connection</li><li>The two VPN services themselves, their price and their terms</li></ul>
+</div></div>
+<p class="note">One machine is not every machine. Paths and defaults can differ on other editions and versions.</p>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<section id="legal" class="s alt">
+<p class="eyebrow">Closing</p>
+<h2>Disclaimer, license and credits</h2>
+<div class="cards"><div class="card"><h3>Disclaimer</h3>
+<ul class="bul sm"><li>Educational material, provided as is, with no warranty</li><li>Not affiliated with or endorsed by Linux Mint, Canonical, Docker or any vendor named here</li><li>Read and understand a command before you run it. Back up before you edit system files</li><li>A security baseline, not a guarantee</li></ul>
+</div><div class="card edit"><h3>License and credits</h3>
+<div class="licrow"><svg aria-label="Creative Commons Attribution (CC BY) license icons" width="150" height="64" viewBox="0 0 150 64"><circle cx="32" cy="32" r="28" fill="none" stroke="#17251C" stroke-width="5"/><path d="M29 25 a8.5 8.5 0 1 0 0 14" fill="none" stroke="#17251C" stroke-width="5"/><path d="M46 25 a8.5 8.5 0 1 0 0 14" fill="none" stroke="#17251C" stroke-width="5"/><circle cx="110" cy="32" r="28" fill="none" stroke="#17251C" stroke-width="5"/><circle cx="110" cy="19" r="5.5" fill="#17251C"/><path d="M101 28 h18 v13 h-4.5 v13 h-9 v-13 h-4.5 z" fill="#17251C"/></svg><p class="lictx">CC BY 4.0</p></div>
+<ul class="bul sm"><li>You may share and adapt this work, also commercially, if you give credit</li><li>Author: Ángel Rodríguez Gil</li><li>Created with AI assistance: Claude Fable 5.2 (Anthropic)</li><li>Version 01, November 2026</li><li>creativecommons.org/licenses/by/4.0</li></ul>
+</div></div>
+<div class="foot"><p class="ft">Linux under the Hood · Version 01 · CC BY 4.0</p><div class="pg"></div></div></section>
+
+<script>function fit(){document.body.style.zoom=Math.min(1,(innerWidth-20)/1920)}fit();addEventListener('resize',fit)</script>
+</body></html>
